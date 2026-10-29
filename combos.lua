@@ -1,0 +1,36 @@
+-- TotA Meter: combos known to Tools of the Avatar (data/combos.json), with the
+-- in-game ids of their two skills. Combos have no id of their own in the site's
+-- data, so a combat line is recognised as a combo by its rune name (English).
+TotaMeter = TotaMeter or {}
+TotaMeter.COMBOS = {
+  { name = "Bedrock", skills = { 134, 58 } },
+  { name = "Chaos Bomb", skills = { 34, 497 } },
+  { name = "Chaotic Backdraft", skills = { 420, 1 } },
+  { name = "Cleansing Rain", skills = { 163, 86 } },
+  { name = "Clumsy", skills = { 420, 5 } },
+  { name = "Disorderly Displacement", skills = { 497, 35 } },
+  { name = "Enfeeblement", skills = { 420, 57 } },
+  { name = "Evaporate", skills = { 420, 162 } },
+  { name = "Fiery Decay", skills = { 63, 42 } },
+  { name = "Flaming Bash", skills = { 132, 62 } },
+  { name = "Glacial Glissade", skills = { 111, 161 } },
+  { name = "Hamstring", skills = { 15, 158 } },
+  { name = "Icy Puncture", skills = { 113, 161 } },
+  { name = "Icy Thrust", skills = { 10, 161 } },
+  { name = "Imbecile Incantation", skills = { 420, 143 } },
+  { name = "Piercing Breeze", skills = { 1, 121 } },
+  { name = "Quadruple Slash", skills = { 10, 12 } },
+  { name = "Rainbow Blast", skills = { 162, 3783 } },
+  { name = "Sacrifice", skills = { 82, 42 } },
+  { name = "Sawblade Sweep", skills = { 15, 18 } },
+  { name = "Shield Smash", skills = { 132, 52 } },
+  { name = "Shock Arrow", skills = { 121, 221 } },
+  { name = "Smoldering Shiv", skills = { 10, 62 } },
+  { name = "Splintering Strike", skills = { 20, 52 } },
+  { name = "Summon Air Elemental", skills = { 420, 56 } },
+  { name = "Summon Earth Elemental", skills = { 420, 4 } },
+  { name = "Summon Fire Elemental", skills = { 420, 168 } },
+  { name = "Summon Ice Elemental", skills = { 67, 420 } },
+  { name = "Summon Skeleton Mage", skills = { 143, 46 } },
+  { name = "Titan Smash", skills = { 22, 75 } },
+}
