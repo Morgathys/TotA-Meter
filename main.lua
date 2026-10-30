@@ -32,6 +32,7 @@ M.diag = { batches = 0, lines = 0, mine = 0, counted = 0, notMine = 0, notDamage
   lastBatchAt = nil, lastMineAt = nil, lastCountedAt = nil, lastLineTime = nil, ticks = 0, lastTickAt = nil, restarts = 0 }
 M.errors = {}          -- { where, message, count, firstAt, lastAt }, newest first, at most 8
 M.errorCount = 0
+M.previousErrors = {}  -- the errors of the session before the last reload (shown apart, never merged)
 
 local unpackArgs = table.unpack or unpack
 
@@ -61,7 +62,7 @@ function M.ReportError(where, err)
     when = tostring(ShroudServerTime or "") })
   while #M.errors > 8 do table.remove(M.errors) end
   M.Say("Error in " .. where .. ": " .. short .. "  (the meter keeps running; /totameter errors for details)")
-  pcall(ShroudSetSavedVar, "lastErrors", M.errors, "account")
+  pcall(ShroudSetSavedVar, "lastErrors", { version = M.VERSION, list = M.errors }, "account")
 end
 
 -- Runs fn(...) and records any error instead of letting it reach the game.
@@ -269,10 +270,24 @@ function M.PrintDebug()
     tostring(M.inCombat), tostring(D.lastLineTime), M.Now(), tostring(M.playerName)))
 end
 
-function M.PrintErrors()
-  if #M.errors == 0 then M.Say("No errors since the last reload.") return end
-  for _, e in ipairs(M.errors) do
-    M.Say(string.format("%s x%d (first %s): %s", e.where, e.count, e.when, e.detail))
+function M.PrintErrors(arg)
+  if arg == "clear" then
+    M.errors, M.errorCount, M.previousErrors = {}, 0, {}
+    pcall(ShroudSetSavedVar, "lastErrors", { list = {} }, "account")
+    M.Say("Error list cleared.")
+    return
+  end
+  if #M.errors == 0 then M.Say(M.VERSION .. ": no errors since the last reload.")
+  else
+    M.Say(M.VERSION .. ": " .. M.errorCount .. " error(s) since the last reload:")
+    for _, e in ipairs(M.errors) do
+      M.Say(string.format("%s x%d (first %s): %s", e.where, e.count, e.when, e.detail))
+    end
+  end
+  if #M.previousErrors > 0 then
+    M.Say("Before the last reload (" .. tostring(M.previousErrorsVersion or "older version") .. "): " ..
+      #M.previousErrors .. " kind(s) of error, first: " .. tostring(M.previousErrors[1].where) .. ": " ..
+      tostring(M.previousErrors[1].message) .. "  (/totameter errors clear forgets them)")
   end
 end
 
@@ -296,7 +311,7 @@ local function command(args)
   elseif cmd == "export" then M.View.Open("export")
   elseif cmd == "hud" then M.View.SetHudShown(not M.settings.hud)
   elseif cmd == "debug" then M.PrintDebug()
-  elseif cmd == "errors" then M.PrintErrors()
+  elseif cmd == "errors" then M.PrintErrors(rest)
   else M.Say(HELP) end
 end
 
@@ -312,11 +327,17 @@ function ShroudOnStart()
     run = function(args) guard("/totameter", command, args) end }
   if not ok then M.Say("Could not add /totameter (" .. tostring(reason) .. ").") end
   ShroudRegisterPeriodic("tota_meter_tick", tick, M.TICK, true)
+  -- The previous session's errors are shown apart and then forgotten. The
+  -- list is replaced by an empty one (0.6.3: setting it to nil kept the old
+  -- list, so 0.6.1's error came back after every reload).
   local okPrev, prev = pcall(ShroudGetSavedVar, "lastErrors", "account")
-  if okPrev and type(prev) == "table" and #prev > 0 then
-    M.Say("Errors were recorded before the last reload: /totameter errors shows them until the next one.")
-    for _, e in ipairs(prev) do if #M.errors < 8 then M.errors[#M.errors + 1] = e end end
-    pcall(ShroudSetSavedVar, "lastErrors", nil, "account")
+  if okPrev and type(prev) == "table" then
+    local list = type(prev.list) == "table" and prev.list or prev   -- 0.6.1/0.6.2 saved the bare list
+    for _, e in ipairs(list) do
+      if type(e) == "table" and #M.previousErrors < 8 then M.previousErrors[#M.previousErrors + 1] = e end
+    end
+    M.previousErrorsVersion = prev.version
+    pcall(ShroudSetSavedVar, "lastErrors", { list = {} }, "account")
   end
   M.Say(M.VERSION .. " ready. Use the HUD's Menu button or /totameter.")
 end

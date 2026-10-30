@@ -5,7 +5,7 @@
 TotaMeter = TotaMeter or {}
 local M = TotaMeter
 
-M.VERSION = "0.6.2"
+M.VERSION = "0.6.3"
 M.SLUG = "tota-meter"
 
 -- The gauge icon shipped with the package (store icon: icon.png).
