@@ -329,7 +329,7 @@ local function refreshHud(now)
   if not hud or not M.settings.hud then return end
   fitHud()   -- the layout of the previous refresh is known by now
   local s, kind = hudSession()
-  H.title:SetText(hudTitle(s, kind, now) .. ((M.errorCount or 0) > 0 and "  (!) /totameter errors" or ""))
+  H.title:SetText(hudTitle(s, kind, now) .. ((M.errorCount or 0) > 0 and "  (!) /tota errors" or ""))
   local started = s and s.start
   for _, st in ipairs(H.stats) do
     local v = "-"
@@ -409,7 +409,7 @@ local pages = {}
 local current = nil
 local P = { meter = {}, tester = {}, export = {}, hud = {} }   -- page elements
 
-local TABS = { { "meter", "Meter" }, { "tester", "Build Tester" }, { "export", "Export" }, { "hud", "HUD" } }
+local TABS = { { "meter", "Meter" }, { "tester", "Build Tester" }, { "export", "Export" }, { "hud", "Setup" } }
 
 -- Meter --------------------------------------------------------------------
 
@@ -750,6 +750,19 @@ end
 
 -- HUD settings -------------------------------------------------------------
 
+-- The slash commands, one per line: command, then what it does.
+local function commandList()
+  local rows = { label("Commands", "bright", { fontSize = 13, marginBottom = 4 }) }
+  for _, c in ipairs(M.COMMAND_LIST) do
+    rows[#rows + 1] = UI.Row{ style = { alignItems = "center", marginTop = 2 }, children = {
+      label(c[1], "title", { fontSize = 12, width = 170, whiteSpace = "nowrap" }),
+      label(c[2], "text", { fontSize = 12, flexGrow = 1, flexShrink = 1, whiteSpace = "wrap" }) } }
+  end
+  rows[#rows + 1] = label("Type them in the chat box.", "dim",
+    { fontSize = 11, marginTop = 6, whiteSpace = "wrap" })
+  return UI.Column{ class = "inset", style = { padding = 12, marginTop = 10 }, children = rows }
+end
+
 local function buildHudPage()
   local e = P.hud
   e.shown = UI.Toggle{ text = "Show the HUD", value = M.settings.hud, onChange = function(_, v) View.SetHudShown(v == true) end }
@@ -770,8 +783,9 @@ local function buildHudPage()
   end }
   local nudge = { fontSize = 12, paddingLeft = 10, paddingRight = 10, marginRight = 4 }
   return UI.Column{ children = {
-    label("HUD", "title", { fontSize = 16 }),
+    label("Setup", "title", { fontSize = 16 }),
     UI.Column{ class = "inset", style = { padding = 12, marginTop = 10 }, children = {
+      label("HUD", "bright", { fontSize = 13 }),
       e.shown,
       label("Lines shown", "dim", { fontSize = 12, marginTop = 10 }),
       UI.Grid{ columns = 2, children = toggles },
@@ -786,6 +800,7 @@ local function buildHudPage()
         button("Down", function() View.MoveHud(0, 20) end, nudge), button("Right", function() View.MoveHud(20, 0) end, nudge),
         button("Reset position", function() View.MoveHud(nil, nil) end, nudge) } },
     } },
+    commandList(),
   } }
 end
 

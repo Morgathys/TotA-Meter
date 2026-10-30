@@ -2,7 +2,7 @@
 
 DPS meter and Build Tester for **Tools of the Avatar**. It counts only **your** damage and **your pet's**; other players and party members are ignored.
 
-Version 0.6.3 · slug `tota-meter` · minimum Lua API 25.
+Version 0.6.4 · slug `tota-meter` · minimum Lua API 25.
 
 ## Install
 1. Create a folder named `tota-meter` in your Lua folder (type `/lua path` in game to find it) and copy
@@ -11,7 +11,7 @@ Version 0.6.3 · slug `tota-meter` · minimum Lua API 25.
    and the icons load from `tota-meter/`.
 2. Type `/lua reload`, then switch **TotA Meter** ON in the Add-on Manager.
 
-Open it with the **Menu** button on the HUD (or `/totameter`). The window has four tabs.
+Open it with the **Menu** button on the HUD (or `/tota`). The window has four tabs: Meter, Build Tester, Export and Setup.
 
 ## Meter
 Cumulative until you press **Reset meter**: every fight adds up, and DPS is measured over combat time (the time between fights is not counted). DPS (and the last 5 seconds), peak DPS (best 5 seconds), total damage, combat time and number of fights, critical rate, casts per minute, pet share, missed attacks; per skill and pet attack: damage and share, highest hit, uses and uses per minute, critical, glancing and ultraslay rates, and **focus per cast** (estimate); damage by type, combos, Combat / Alt deck split, your attack speed and crit at the start, and any potion or food active.
@@ -32,7 +32,7 @@ Each code replaces only its own part of the build, so you can paste one, two or 
 
 The Decks code needs the game's Lua API 56 or later. **Save tota_export.json** still writes the old file (now with each deck's exact layout); on the site use Import → *Use the export file instead*.
 
-## HUD
+## Setup
 Choose its lines (DPS, peak DPS, total damage, critical rate, skill damage share, skill max hit, skill uses per minute) and how many skills it lists. Move it by the grip at its top-left corner (shown while Lock Status Movement is off in the Interface options) or with the buttons on this tab.
 
 ## Loot
@@ -44,6 +44,16 @@ The HUD's bottom line (as tall as the item's icon) shows the last item of note y
 Items taken out of your bank or a chest count as gained too: the game reports them the same way.
 
 ## Commands
-`/totameter` (window) · `tester start|stop|reset` · `export` (opens the Export tab) · `hud` · `debug` (is the meter receiving your combat lines?) · `errors` (errors caught since the last reload; `errors clear` forgets them)
+Type them in the chat box; the Setup tab lists them too.
+
+| Command | What it does |
+|---|---|
+| `/tota` | Open or close the window |
+| `/tota tester start` · `stop` · `reset` | Start a Build Tester run, end it now, or clear it |
+| `/tota export` | Open the Export tab |
+| `/tota setup` | Open the Setup tab |
+| `/tota hud` | Show or hide the HUD |
+| `/tota debug` | Check that the meter receives and counts your combat lines |
+| `/tota errors` · `errors clear` | List the errors caught since the last reload, or forget them |
 
 Focus per cast is an estimate: the focus you lose just before each hit.

@@ -5,7 +5,23 @@
 TotaMeter = TotaMeter or {}
 local M = TotaMeter
 
-M.VERSION = "0.6.3"
+M.VERSION = "0.6.4"
+
+-- Slash commands (owner, 2026-10-30: /tota instead of /totameter), listed in
+-- the Setup tab and in the game's /help.
+M.CMD = "tota"
+M.COMMAND_LIST = {
+  { "/tota", "Open or close the TotA Meter window" },
+  { "/tota tester start", "Start a Build Tester run (snapshots at 1, 3 and 5 minutes)" },
+  { "/tota tester stop", "End the Build Tester run now and keep it" },
+  { "/tota tester reset", "Clear the Build Tester run" },
+  { "/tota export", "Open the Export tab (codes for Tools of the Avatar)" },
+  { "/tota setup", "Open this Setup tab" },
+  { "/tota hud", "Show or hide the HUD" },
+  { "/tota debug", "Check that the meter receives and counts your combat lines" },
+  { "/tota errors", "List the errors caught since the last reload" },
+  { "/tota errors clear", "Forget the recorded errors" },
+}
 M.SLUG = "tota-meter"
 
 -- The gauge icon shipped with the package (store icon: icon.png).

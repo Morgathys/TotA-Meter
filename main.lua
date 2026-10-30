@@ -1,4 +1,4 @@
--- TotA Meter: game callbacks, the session life cycle and /totameter.
+-- TotA Meter: game callbacks, the session life cycle and /tota.
 --
 -- Two sessions read the same combat lines:
 --   M.fight  - the meter: cumulative until reset (owner, 2026-10-28). Each fight
@@ -22,9 +22,9 @@ M.tester = nil
 -- Diagnostics and error guard (0.6.1, owner's report 2026-10-30: the meter
 -- stopped counting after a while until /lua reload). The game turns an
 -- add-on off after repeated errors in its callbacks, so every callback runs
--- through guard(): an error is recorded (console, /totameter errors, the
+-- through guard(): an error is recorded (console, /tota errors, the
 -- HUD) instead of reaching the game, and the meter keeps counting.
--- /totameter debug shows whether combat lines still arrive and why they are
+-- /tota debug shows whether combat lines still arrive and why they are
 -- or aren't counted.
 -- ---------------------------------------------------------------------------
 
@@ -61,7 +61,7 @@ function M.ReportError(where, err)
   table.insert(M.errors, 1, { where = where, message = short, detail = full:sub(1, 1500), count = 1, firstAt = now, lastAt = now,
     when = tostring(ShroudServerTime or "") })
   while #M.errors > 8 do table.remove(M.errors) end
-  M.Say("Error in " .. where .. ": " .. short .. "  (the meter keeps running; /totameter errors for details)")
+  M.Say("Error in " .. where .. ": " .. short .. "  (the meter keeps running; /tota errors for details)")
   pcall(ShroudSetSavedVar, "lastErrors", { version = M.VERSION, list = M.errors }, "account")
 end
 
@@ -131,7 +131,7 @@ local function finishTester(now, stopped)
   if s.start then saveRun(s) end
   if not stopped then
     local last = s.snaps[#s.snaps]
-    M.Say(string.format("Build Tester done: %s DPS over 5:00 (%s damage). /totameter for the details.",
+    M.Say(string.format("Build Tester done: %s DPS over 5:00 (%s damage). /tota for the details.",
       M.Num(last and last.dps or 0), M.Num(last and last.damage or 0)))
     M.View.Open("tester")
   end
@@ -287,15 +287,15 @@ function M.PrintErrors(arg)
   if #M.previousErrors > 0 then
     M.Say("Before the last reload (" .. tostring(M.previousErrorsVersion or "older version") .. "): " ..
       #M.previousErrors .. " kind(s) of error, first: " .. tostring(M.previousErrors[1].where) .. ": " ..
-      tostring(M.previousErrors[1].message) .. "  (/totameter errors clear forgets them)")
+      tostring(M.previousErrors[1].message) .. "  (/tota errors clear forgets them)")
   end
 end
 
 -- ---------------------------------------------------------------------------
--- /totameter
+-- /tota
 -- ---------------------------------------------------------------------------
 
-local HELP = "/totameter [tester start|stop|reset | export | hud | debug | errors]"
+local HELP = "/tota [tester start|stop|reset | export | setup | hud | debug | errors [clear]]. The Setup tab lists them all."
 
 local function command(args)
   if type(args) == "table" then args = table.concat(args, " ") end
@@ -307,8 +307,9 @@ local function command(args)
     if rest == "stop" then M.TesterStop()
     elseif rest == "reset" then M.TesterReset()
     elseif rest == "start" or rest == "" then M.TesterStart(); M.View.Open("tester")
-    else M.Say("Use /totameter tester start, stop or reset.") end
+    else M.Say("Use /tota tester start, stop or reset.") end
   elseif cmd == "export" then M.View.Open("export")
+  elseif cmd == "setup" then M.View.Open("hud")
   elseif cmd == "hud" then M.View.SetHudShown(not M.settings.hud)
   elseif cmd == "debug" then M.PrintDebug()
   elseif cmd == "errors" then M.PrintErrors(rest)
@@ -323,9 +324,9 @@ function ShroudOnStart()
   M.fight = Model.New(nil)
   M.lastFocus = ShroudPlayerCurrentFocus
   M.View.BuildHud()
-  local ok, reason = Shroud.Command{ name = "totameter", help = "TotA Meter " .. M.VERSION .. ": DPS meter, Build Tester, export. " .. HELP,
-    run = function(args) guard("/totameter", command, args) end }
-  if not ok then M.Say("Could not add /totameter (" .. tostring(reason) .. ").") end
+  local ok, reason = Shroud.Command{ name = M.CMD, help = "TotA Meter: /tota [tester start|stop|reset, export, setup, hud, debug, errors]. Setup tab lists them.",
+    run = function(args) guard("/" .. M.CMD, command, args) end }
+  if not ok then M.Say("Could not add /" .. M.CMD .. " (" .. tostring(reason) .. "). Use the HUD's Menu button.") end
   ShroudRegisterPeriodic("tota_meter_tick", tick, M.TICK, true)
   -- The previous session's errors are shown apart and then forgotten. The
   -- list is replaced by an empty one (0.6.3: setting it to nil kept the old
@@ -339,7 +340,7 @@ function ShroudOnStart()
     M.previousErrorsVersion = prev.version
     pcall(ShroudSetSavedVar, "lastErrors", { list = {} }, "account")
   end
-  M.Say(M.VERSION .. " ready. Use the HUD's Menu button or /totameter.")
+  M.Say(M.VERSION .. " ready. Use the HUD's Menu button or /tota.")
 end
 
 function ShroudOnLogOut()
