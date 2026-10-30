@@ -2,7 +2,7 @@
 
 DPS meter and Build Tester for **Tools of the Avatar**. It counts only **your** damage and **your pet's**; other players and party members are ignored.
 
-Version 0.6.0 · slug `tota-meter` · minimum Lua API 25.
+Version 0.6.1 · slug `tota-meter` · minimum Lua API 25.
 
 ## Install
 1. Create a folder named `tota-meter` in your Lua folder (type `/lua path` in game to find it) and copy
@@ -44,6 +44,6 @@ The HUD's bottom line (as tall as the item's icon) shows the last item of note y
 Items taken out of your bank or a chest count as gained too: the game reports them the same way.
 
 ## Commands
-`/totameter` (window) · `tester start|stop|reset` · `export` (opens the Export tab) · `hud`
+`/totameter` (window) · `tester start|stop|reset` · `export` (opens the Export tab) · `hud` · `debug` (is the meter receiving your combat lines?) · `errors` (errors caught since the last reload)
 
 Focus per cast is an estimate: the focus you lose just before each hit.

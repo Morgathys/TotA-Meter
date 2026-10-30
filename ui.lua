@@ -317,7 +317,7 @@ local function refreshHud(now)
   if not hud or not M.settings.hud then return end
   fitHud()   -- the layout of the previous refresh is known by now
   local s, kind = hudSession()
-  H.title:SetText(hudTitle(s, kind, now))
+  H.title:SetText(hudTitle(s, kind, now) .. ((M.errorCount or 0) > 0 and "  (!) /totameter errors" or ""))
   local started = s and s.start
   for _, st in ipairs(H.stats) do
     local v = "-"

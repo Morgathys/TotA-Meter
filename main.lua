@@ -17,6 +17,62 @@ M.SNAP_GRACE = 0.5    -- lines can arrive a little after their time
 
 M.fight = nil
 M.tester = nil
+
+-- ---------------------------------------------------------------------------
+-- Diagnostics and error guard (0.6.1, owner's report 2026-10-30: the meter
+-- stopped counting after a while until /lua reload). The game turns an
+-- add-on off after repeated errors in its callbacks, so every callback runs
+-- through guard(): an error is recorded (console, /totameter errors, the
+-- HUD) instead of reaching the game, and the meter keeps counting.
+-- /totameter debug shows whether combat lines still arrive and why they are
+-- or aren't counted.
+-- ---------------------------------------------------------------------------
+
+M.diag = { batches = 0, lines = 0, mine = 0, counted = 0, notMine = 0, notDamage = 0, waiting = 0, dropped = 0,
+  lastBatchAt = nil, lastMineAt = nil, lastCountedAt = nil, lastLineTime = nil, ticks = 0, lastTickAt = nil, restarts = 0 }
+M.errors = {}          -- { where, message, count, firstAt, lastAt }, newest first, at most 8
+M.errorCount = 0
+
+local unpackArgs = table.unpack or unpack
+
+local function traceback(err)
+  local msg = tostring(err)
+  if type(debug) == "table" and type(debug.traceback) == "function" then
+    local ok, tb = pcall(debug.traceback, msg, 2)
+    if ok and type(tb) == "string" then return tb end
+  end
+  return msg
+end
+
+function M.ReportError(where, err)
+  M.errorCount = M.errorCount + 1
+  local full = tostring(err)
+  local short = full:match("^[^\n]*") or full
+  local now = M.Now()
+  for _, e in ipairs(M.errors) do
+    if e.where == where and e.message == short then
+      e.count = e.count + 1
+      e.lastAt = now
+      if e.count == 10 or e.count % 500 == 0 then M.Say("Error in " .. where .. " (x" .. e.count .. "): " .. short) end
+      return
+    end
+  end
+  table.insert(M.errors, 1, { where = where, message = short, detail = full:sub(1, 1500), count = 1, firstAt = now, lastAt = now,
+    when = tostring(ShroudServerTime or "") })
+  while #M.errors > 8 do table.remove(M.errors) end
+  M.Say("Error in " .. where .. ": " .. short .. "  (the meter keeps running; /totameter errors for details)")
+  pcall(ShroudSetSavedVar, "lastErrors", M.errors, "account")
+end
+
+-- Runs fn(...) and records any error instead of letting it reach the game.
+local function guard(where, fn, ...)
+  local args = { ... }
+  local n = select("#", ...)
+  local ok, err = xpcall(function() return fn(unpackArgs(args, 1, n)) end, traceback)
+  if not ok then M.ReportError(where, err) end
+  return ok
+end
+M.Guard = guard
 M.inCombat = false
 M.deckName = nil
 M.playerName = nil
@@ -113,15 +169,27 @@ end
 -- Game callbacks
 -- ---------------------------------------------------------------------------
 
-function ShroudOnCombatEvents(events, dropped)
+local function onCombatEvents(events, dropped)
   if type(events) ~= "table" then return end
   local now = M.Now()
+  local D = M.diag
+  D.batches = D.batches + 1
+  D.lastBatchAt = now
+  if type(dropped) == "number" and dropped > 0 then D.dropped = D.dropped + dropped end
+  if not M.fight then M.fight = Model.New(nil); D.restarts = D.restarts + 1 end
   local ctx = { now = now, playerName = M.playerName, deck = M.deckName, isSkill = isSkill, comboByName = comboByName }
   local t = M.tester
   if t and t.ended then t = nil end
   local over = false
   for _, e in ipairs(events) do
-    Model.Add(M.fight, e, ctx)
+    D.lines = D.lines + 1
+    if type(e) == "table" and type(e.time) == "number" then D.lastLineTime = e.time end
+    local res = Model.Add(M.fight, e, ctx)
+    if res == "counted" then D.counted = D.counted + 1; D.lastCountedAt = now
+    elseif res == "waiting" then D.waiting = D.waiting + 1
+    elseif type(e) == "table" and (e.fromYou == true or e.fromYourPet == true) then D.notDamage = D.notDamage + 1
+    else D.notMine = D.notMine + 1 end
+    if type(e) == "table" and (e.fromYou == true or e.fromYourPet == true) then D.mine = D.mine + 1; D.lastMineAt = now end
     if t and Model.Add(t, e, ctx) == "over" then over = true end
   end
   for _, s in ipairs({ M.fight, t }) do
@@ -132,9 +200,10 @@ function ShroudOnCombatEvents(events, dropped)
   end
   if t and (over or Model.Done(t)) then finishTester(now, false) end
 end
+function ShroudOnCombatEvents(events, dropped) guard("combat lines", onCombatEvents, events, dropped) end
 
 -- Focus lost between two frames: the estimate of each cast's focus cost.
-function ShroudOnUpdate()
+local function onUpdate()
   local f = ShroudPlayerCurrentFocus
   if type(f) == "number" and type(M.lastFocus) == "number" and f < M.lastFocus - 0.5 then
     local now = M.Now()
@@ -143,21 +212,29 @@ function ShroudOnUpdate()
   end
   M.lastFocus = f
 end
+function ShroudOnUpdate() guard("frame update", onUpdate) end
 
 -- Loot of note: artifacts, Crowns of the Obsidians, blueprints (see core.lua).
 function ShroudOnItemsGained(items, dropped)
-  if type(items) == "table" and M.AddLoot(items) > 0 then M.View.Tick(M.Now()) end
+  guard("loot", function()
+    if type(items) == "table" and M.AddLoot(items) > 0 then M.View.Tick(M.Now()) end
+  end)
 end
 
 function ShroudOnCombatModeChanged(inCombat) M.inCombat = inCombat == true end
 
 function ShroudOnSkillsChanged(levelsChanged)
-  if levelsChanged then skillIds = nil; M.ResetSkillIcons() end
+  guard("skills changed", function()
+    if levelsChanged then skillIds = nil; M.ResetSkillIcons() end
+  end)
 end
 
-local function tick()
+local function tickModel()
   local now = M.Now()
+  M.diag.ticks = M.diag.ticks + 1
+  M.diag.lastTickAt = now
   M.deckName = M.Export.CurrentDeckName()
+  if not M.fight then M.fight = Model.New(nil); M.diag.restarts = M.diag.restarts + 1 end
   local f = M.fight
   if Model.InCombat(f) then
     Model.DeckTick(f, M.deckName, M.TICK, now)
@@ -170,14 +247,40 @@ local function tick()
     Model.Checkpoints(t, now - M.SNAP_GRACE)
     if Model.Done(t) then finishTester(now, false) end
   end
-  M.View.Tick(now)
+end
+
+-- The model and the HUD are guarded separately: a display problem never stops the counting.
+local function tick()
+  guard("meter tick", tickModel)
+  guard("HUD", M.View.Tick, M.Now())
+end
+
+local function ago(t) return t and (string.format("%.0f s ago", M.Now() - t)) or "never" end
+
+function M.PrintDebug()
+  local D = M.diag
+  M.Say(string.format("%s · API %s · combat line batches %d (last %s) · lines %d · yours/pet %d (last %s) · counted %d (last %s)",
+    M.VERSION, tostring(ShroudLuaApiVersion), D.batches, ago(D.lastBatchAt), D.lines, D.mine, ago(D.lastMineAt), D.counted, ago(D.lastCountedAt)))
+  M.Say(string.format("not yours %d · yours but not damage or miss %d · before the first hit %d · dropped by the game %d · ticks %d (last %s) · errors %d",
+    D.notMine, D.notDamage, D.waiting, D.dropped, D.ticks, ago(D.lastTickAt), M.errorCount))
+  local f = M.fight
+  M.Say(string.format("meter: %s · in combat %s (game says %s) · last line time %s · game time %.1f · player %s",
+    f and (f.start and (M.Num(f.total) .. " damage") or "not started") or "missing", tostring(f and Model.InCombat(f)),
+    tostring(M.inCombat), tostring(D.lastLineTime), M.Now(), tostring(M.playerName)))
+end
+
+function M.PrintErrors()
+  if #M.errors == 0 then M.Say("No errors since the last reload.") return end
+  for _, e in ipairs(M.errors) do
+    M.Say(string.format("%s x%d (first %s): %s", e.where, e.count, e.when, e.detail))
+  end
 end
 
 -- ---------------------------------------------------------------------------
 -- /totameter
 -- ---------------------------------------------------------------------------
 
-local HELP = "/totameter [tester start|stop|reset | export | hud]"
+local HELP = "/totameter [tester start|stop|reset | export | hud | debug | errors]"
 
 local function command(args)
   if type(args) == "table" then args = table.concat(args, " ") end
@@ -192,6 +295,8 @@ local function command(args)
     else M.Say("Use /totameter tester start, stop or reset.") end
   elseif cmd == "export" then M.View.Open("export")
   elseif cmd == "hud" then M.View.SetHudShown(not M.settings.hud)
+  elseif cmd == "debug" then M.PrintDebug()
+  elseif cmd == "errors" then M.PrintErrors()
   else M.Say(HELP) end
 end
 
@@ -204,9 +309,15 @@ function ShroudOnStart()
   M.lastFocus = ShroudPlayerCurrentFocus
   M.View.BuildHud()
   local ok, reason = Shroud.Command{ name = "totameter", help = "TotA Meter " .. M.VERSION .. ": DPS meter, Build Tester, export. " .. HELP,
-    run = command }
+    run = function(args) guard("/totameter", command, args) end }
   if not ok then M.Say("Could not add /totameter (" .. tostring(reason) .. ").") end
   ShroudRegisterPeriodic("tota_meter_tick", tick, M.TICK, true)
+  local okPrev, prev = pcall(ShroudGetSavedVar, "lastErrors", "account")
+  if okPrev and type(prev) == "table" and #prev > 0 then
+    M.Say("Errors were recorded before the last reload: /totameter errors shows them until the next one.")
+    for _, e in ipairs(prev) do if #M.errors < 8 then M.errors[#M.errors + 1] = e end end
+    pcall(ShroudSetSavedVar, "lastErrors", nil, "account")
+  end
   M.Say(M.VERSION .. " ready. Use the HUD's Menu button or /totameter.")
 end
 
