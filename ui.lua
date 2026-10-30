@@ -476,56 +476,111 @@ end
 -- Build Tester -----------------------------------------------------------------
 
 local CHECK_LABELS = { "1 min", "3 min", "5 min" }
-local METRICS = {
-  { "DPS", icon = "dps", function(x) return M.Num(x.dps) end },
-  { "Peak DPS (best 5 s)", icon = "peak", function(x) return M.Num(x.peakDps) end },
-  { "Total damage", icon = "total", function(x) return M.Num(x.damage) end },
-  { "Casts per minute", icon = "casts", function(x) return M.Dec(x.castsPerMinute) end },
-  { "Critical", icon = "crit", function(x) return M.Pct(x.critRate, 1) end },
-  { "Glancing", icon = "glancing", function(x) return M.Pct(x.glancingRate, 1) end },
-  { "Ultraslay", icon = "ultraslay", function(x) return M.Pct(x.ultraslayRate, 1) end },
-  { "Missed", icon = "missed", function(x) return M.Pct(x.missRate, 1) end },
-  { "Focus spent", icon = "focus", function(x) return M.Num(x.focusSpent) end },
-  { "Pet share", icon = "pet", function(x) return M.Pct(x.pet, x.damage) end },
-}
-local selected = nil   -- snapshot index shown in the skills table (nil = latest)
 
-function View.SelectSnapshot(i) selected = i end
+-- KPI table (0.7.0): one row per KPI of kpi.lua, one column per span. The
+-- ~300 elements are created a few rows per refresh, since the game refuses
+-- elements created faster than ~200 a second.
+local KPI_COLS = { { "0-1", "w1" }, { "1-3", "w2" }, { "3-5", "w3" }, { "@1", "c1" }, { "@3", "c3" }, { "@5", "c5" } }
+local KPI_NAME_W, KPI_CELL_W = 170, 92
+local SKILL_SPAN_COLS = { { "Skill / attack", 150, "left" }, { "Damage", 74 }, { "Share", 48 }, { "Avg hit", 60 }, { "Avg crit", 62 },
+  { "Crit power", 70 }, { "Crit rate", 60 }, { "Uses", 42 }, { "Focus/cast", 70 }, { "Dmg/focus", 70 } }
+local KPI_ROWS_PER_REFRESH = 7
+local spanPick = nil   -- the span shown in the skills table (nil = the latest)
+
+function View.SelectSnapshot(i) spanPick = nil end
+
+local function kpiRowsList()
+  local list = {}
+  for _, g in ipairs(M.Kpi.GROUPS) do
+    list[#list + 1] = { heading = g[1] }
+    for _, k in ipairs(g[2]) do list[#list + 1] = { id = k[1], name = k[2], tip = k[3], cell = k[4] } end
+  end
+  return list
+end
+
+local function kpiHeader(e)
+  local cells = { label("", "dim", { width = ICON_SIZE, marginRight = 6 }), label("KPI", "dim", { width = KPI_NAME_W, fontSize = 12 }) }
+  e.kpiHead = {}
+  for i, c in ipairs(KPI_COLS) do
+    e.kpiHead[i] = label(c[1], "dim", { width = KPI_CELL_W, textAlign = "right", fontSize = 12, whiteSpace = "nowrap", marginRight = 4 })
+    cells[#cells + 1] = e.kpiHead[i]
+  end
+  return UI.Row{ style = { paddingTop = 3, paddingBottom = 3, paddingLeft = 6, alignItems = "center" }, children = cells }
+end
+
+-- Adds the next KPI rows (up to KPI_ROWS_PER_REFRESH) to the table.
+local function growKpiRows(e)
+  local made = 0
+  while e.kpiNext <= #e.kpiList and made < KPI_ROWS_PER_REFRESH do
+    local item = e.kpiList[e.kpiNext]
+    if item.heading then
+      e.kpiBox:Add(label(item.heading, "title", { fontSize = 13, marginTop = 8, marginBottom = 2, paddingLeft = 6 }))
+    else
+      local cells = {}
+      local icon = M.KpiIcon(item.id)
+      cells[#cells + 1] = icon and iconImage(icon, ICON_SIZE) or label("", "dim", { width = ICON_SIZE, marginRight = 6 })
+      cells[#cells + 1] = label(item.name, "text", { width = KPI_NAME_W, fontSize = 13, whiteSpace = "nowrap" })
+      item.values = {}
+      for i = 1, #KPI_COLS do
+        item.values[i] = label("", "bright", { width = KPI_CELL_W, textAlign = "right", fontSize = 13, whiteSpace = "nowrap", marginRight = 4 })
+        cells[#cells + 1] = item.values[i]
+      end
+      e.kpiStripe = not e.kpiStripe
+      e.kpiBox:Add(UI.Row{ tooltip = item.name .. ": " .. item.tip, style = { paddingTop = 2, paddingBottom = 2, paddingLeft = 6,
+        alignItems = "center", backgroundColor = e.kpiStripe and STRIPE or CLEAR }, children = cells })
+    end
+    e.kpiNext = e.kpiNext + 1
+    made = made + 1
+  end
+end
 
 local function buildTester()
   local e = P.tester
   e.status = label("", "title", { fontSize = 16, flexGrow = 1 })
   e.start = button("Start", function() M.TesterStart() end)
-  e.stop = button("Stop", function() M.TesterStop() end)
-  e.reset = button("Reset", function() M.TesterReset() end)
-  local top = UI.Row{ style = { alignItems = "center" }, children = { e.status, e.start, e.stop, e.reset } }
+  e.reset = button("Reset", function() M.TesterReset() end, { marginLeft = 6 })
+  local top = UI.Row{ style = { alignItems = "center" }, children = { e.status, e.start, e.reset } }
   e.bar = UI.Bar{ value = 0, color = GOLD, style = { height = 6, marginTop = 8 } }
   local marks = UI.Row{ style = { justifyContent = "space-between", marginTop = 2 }, children = {
     label("0:00", "dim", { fontSize = 11 }), label("1:00", "dim", { fontSize = 11 }), label("3:00", "dim", { fontSize = 11 }),
     label("5:00", "dim", { fontSize = 11 }) } }
-  local cmpCols = { { "", 170, "left" }, { "1 min", 120 }, { "3 min", 120 }, { "5 min", 120 } }
-  local cmp, cmpRows = grid(cmpCols, #METRICS, true)
-  e.cmp = cmpRows
+  e.kpiList = kpiRowsList()
+  e.kpiNext = 1
+  e.kpiBox = UI.Column{ class = "inset", style = { paddingTop = 4, paddingBottom = 6 }, children = { kpiHeader(e) } }
   e.pick = {}
-  local pickRow = { label("Skills at", "dim", { marginRight = 8 }) }
-  for i, l in ipairs(CHECK_LABELS) do
-    e.pick[i] = button(l, function() selected = i; View.Refresh(M.Now()) end, { borderWidth = 1, borderColor = CLEAR })
+  local pickRow = { label("Skills for", "dim", { marginRight = 8 }) }
+  for i, c in ipairs(KPI_COLS) do
+    e.pick[i] = button(c[1], function() spanPick = c[2]; View.Refresh(M.Now()) end,
+      { borderWidth = 1, borderColor = CLEAR, marginRight = 4, paddingLeft = 8, paddingRight = 8 })
     pickRow[#pickRow + 1] = e.pick[i]
   end
-  local tbl, rows = grid(SKILL_COLS, 12, true)
+  local tbl, rows = grid(SKILL_SPAN_COLS, 12, true)
   e.rows = rows
+  e.unused = label("", "dim", { whiteSpace = "wrap", marginTop = 4, fontSize = 12 })
   local det, values = kvBlock(DETAIL_KEYS)
   e.details = values
   e.history = {}
   local hist = {}
   for i = 1, 5 do e.history[i] = label("", "text", { whiteSpace = "nowrap", marginTop = 2 }); hist[i] = e.history[i] end
   e.noHistory = label("No finished run yet.", "dim")
-  e.body = UI.Column{ children = { heading("Snapshots"), cmp,
-    UI.Row{ style = { alignItems = "center", marginTop = 14 }, children = pickRow }, tbl, heading("Details"), det } }
+  e.body = UI.Column{ children = {
+    heading("Performance"),
+    label("0-1, 1-3, 3-5: each window on its own.  @1, @3, @5: from your first hit to that minute.  Hover a KPI for what it means.",
+      "dim", { whiteSpace = "wrap", fontSize = 12, marginBottom = 4 }),
+    e.kpiBox,
+    UI.Row{ style = { alignItems = "center", marginTop = 14, flexWrap = "wrap" }, children = pickRow }, tbl, e.unused,
+    heading("Details"), det } }
   return UI.Column{ children = { top,
-    label("Press Start, then hit the Training Dummy. The run starts with your first hit, keeps counting, records every number at 1, 3 and 5 minutes and stops at 5 minutes.",
+    label("Press Start, then hit the Training Dummy. The run starts with your first hit and lasts 5:00: the clock never pauses. Reset cancels a run.",
       "dim", { whiteSpace = "wrap", marginTop = 4, fontSize = 12 }),
     e.bar, marks, e.body, heading("Previous runs"), e.noHistory, UI.Column{ children = hist } } }
+end
+
+local function skillSpanCells(k, total)
+  local function n(v) return v and M.Num(v) or "-" end
+  return { (k.owner == "Pet" and "Pet: " or "") .. k.name, M.Num(k.damage), M.Pct(k.damage, total), n(k.avgHit), n(k.avgCrit),
+    k.critPower and ("x" .. M.Dec(k.critPower)) or "-", k.critRate and (M.Num(k.critRate * 100) .. "%") or "-", M.Num(k.uses),
+    k.focusPerCast and M.Dec(k.focusPerCast) or "-", k.damagePerFocus and M.Dec(k.damagePerFocus) or "-" }
 end
 
 local function refreshTester(now)
@@ -534,48 +589,72 @@ local function refreshTester(now)
   local running = t ~= nil and not t.ended
   e.status:SetText(t and ("Build Tester: " .. testerStatus(t, now)) or "Build Tester")
   e.start:SetEnabled(not running)
-  e.stop:SetEnabled(running)
-  e.reset:SetEnabled(t ~= nil and not running)
+  e.reset:SetEnabled(t ~= nil)
   e.bar:SetValue((t and t.start) and math.min(1, Model.Duration(t, now) / t.testLength) or 0)
-  local snaps = t and t.snaps or {}
-  local liveSum = (running and t.start) and Model.Summary(t, now) or nil
-  local liveIndex = running and t.nextCheckpoint or nil
-  -- comparison table: reached snapshots, the running column live (dim), the rest "-"
-  fillGrid(e.cmp, METRICS, function(m)
-    local cells = { m[1] }
-    for i = 1, 3 do
-      if snaps[i] then cells[i + 1] = m[2](snaps[i])
-      elseif liveSum and liveIndex == i then cells[i + 1] = m[2](liveSum) .. " ..."
-      else cells[i + 1] = "-" end
+  local started = t ~= nil and t.start ~= nil
+  e.body:SetVisible(started)
+  if not started then return end
+  growKpiRows(e)
+  local elapsed = t.ended and t.testLength or Model.Duration(t, now)
+  -- while running, the KPIs are recomputed once a second (not every refresh)
+  local out = t.kpis
+  if not out or running then
+    if e.kpiCache and e.kpiCache.run == t and (running and now - e.kpiCache.at < 1) then out = e.kpiCache.out
+    else
+      out = M.Kpi.Compute(t.rec, elapsed, t.layouts, t.altDeck)
+      e.kpiCache = { run = t, at = now, out = out }
     end
-    return cells
-  end, function(m) return M.MetricIcon(m.icon) end)
-  -- skills of the chosen snapshot (or the latest / live)
-  local idx = selected
-  if not idx or not snaps[idx] then idx = nil end
-  local sum = idx and snaps[idx] or liveSum or snaps[#snaps]
-  local shownIdx = nil   -- the snapshot button lit (none while the live numbers show)
-  if idx then shownIdx = idx elseif not liveSum then shownIdx = #snaps end
-  for i, b in ipairs(e.pick) do
-    b:SetEnabled(snaps[i] ~= nil)
-    b:SetStyle({ borderColor = (shownIdx == i) and GOLD or CLEAR })
   end
-  e.body:SetVisible(t ~= nil and t.start ~= nil)
+  -- KPI cells; a span still running shows its value so far with "..."
+  for i, c in ipairs(KPI_COLS) do
+    local r = out[c[2]]
+    e.kpiHead[i]:SetText(c[1] .. ((r.live and not r.empty) and " ..." or ""))
+  end
+  for _, item in ipairs(e.kpiList) do
+    if item.values then
+      for i, c in ipairs(KPI_COLS) do
+        local r = out[c[2]]
+        local text = ""
+        if not r.empty then
+          local ok, v = pcall(item.cell, r)
+          text = ok and (v or "") or "?"
+        end
+        item.values[i]:SetText(text)
+      end
+    end
+  end
+  -- skills of the chosen span (default: the latest span with data)
+  local key = spanPick
+  if not key or out[key].empty then
+    key = "c1"
+    for _, c in ipairs(KPI_COLS) do if c[2]:sub(1, 1) == "c" and not out[c[2]].empty then key = c[2] end end
+  end
+  for i, b in ipairs(e.pick) do
+    b:SetEnabled(not out[KPI_COLS[i][2]].empty)
+    b:SetStyle({ borderColor = (KPI_COLS[i][2] == key) and GOLD or CLEAR })
+  end
+  local r = out[key]
+  fillGrid(e.rows, r.skills or {}, function(k) return skillSpanCells(k, r.damage or 0) end, M.SkillIcon)
+  e.unused:SetText((r.unused and #r.unused > 0) and ("Runes in your deck not cast: " .. table.concat(r.unused, ", ")) or "")
+  e.unused:SetVisible(r.unused ~= nil and #r.unused > 0)
+  -- details: the snapshot at the end of the chosen span, or the live numbers
+  local snaps = t.snaps or {}
+  local idx = ({ w1 = 1, c1 = 1, w2 = 2, c3 = 2, w3 = 3, c5 = 3 })[key]
+  local sum = snaps[idx] or (running and Model.Summary(t, now)) or snaps[#snaps]
   if sum then
-    fillGrid(e.rows, sum.skills, skillCells, M.SkillIcon)
     local d = detailTexts(sum, t)
     for i, l in ipairs(e.details) do l:SetText(d[i]) end
   end
   local tests = M.tests or {}
   e.noHistory:SetVisible(#tests == 0)
   for i, l in ipairs(e.history) do
-    local r = tests[i]
-    if r then
+    local h = tests[i]
+    if h then
       local parts = {}
-      for j, sn in ipairs(r.snapshots or {}) do parts[#parts + 1] = CHECK_LABELS[j] .. " " .. M.Num(sn.dps) .. " DPS" end
-      l:SetText(tostring(r.when or "") .. "   " .. table.concat(parts, "   ") .. (r.stopped and "   (stopped)" or ""))
+      for j, sn in ipairs(h.snapshots or {}) do parts[#parts + 1] = CHECK_LABELS[j] .. " " .. M.Num(sn.dps) .. " DPS" end
+      l:SetText(tostring(h.when or "") .. "   " .. table.concat(parts, "   ") .. (h.stopped and "   (stopped)" or ""))
     end
-    l:SetVisible(r ~= nil)
+    l:SetVisible(h ~= nil)
   end
 end
 

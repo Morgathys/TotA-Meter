@@ -121,7 +121,50 @@ end
 
 local function saveRun(s)
   if not s.start or not s.snaps[1] then return end   -- nothing worth keeping before 1 minute
-  M.RememberTest({ when = tostring(ShroudServerTime or ""), stopped = s.stopped, stats = s.snap, snapshots = s.snaps })
+  local kpis = nil
+  local ok, out = pcall(M.Kpi.Compute, s.rec, s.testLength, s.layouts, s.altDeck)
+  if ok then s.kpis = out; kpis = M.Kpi.Saved(out) else M.ReportError("Build Tester KPIs", out) end
+  M.RememberTest({ when = tostring(ShroudServerTime or ""), stopped = s.stopped, stats = s.snap, snapshots = s.snaps, kpis = kpis,
+    decks = s.layoutNames })
+end
+
+-- The decks of a run, read once at its first hit: the equipped deck and the
+-- alternate deck (Lua API 56), each { name, pool = { skill ids }, locked =
+-- { skill ids }, names = { [id] = name } }, for Deck Use and Locked Share.
+function M.DeckLayouts(startDeck)
+  local list = {}
+  if type(ShroudGetDeckLayout) ~= "function" then return list, nil end
+  local function read(nameOrNil)
+    local ok, d = pcall(ShroudGetDeckLayout, nameOrNil)
+    if not ok or type(d) ~= "table" then return nil end
+    local out = { name = d.name, pool = {}, locked = {}, names = {} }
+    for _, c in ipairs(d.cards or {}) do
+      if c.kind == "rune" and type(c.skillId) == "number" then out.pool[#out.pool + 1] = c.skillId; out.names[c.skillId] = c.name end
+    end
+    for _, s in ipairs(d.slots or {}) do
+      local c = s.card
+      if s.kind == "locked" and type(c) == "table" and c.kind == "rune" and type(c.skillId) == "number" then
+        out.locked[#out.locked + 1] = c.skillId
+        out.names[c.skillId] = c.name
+      end
+    end
+    return out
+  end
+  local equipped = read(nil)
+  if equipped then list[#list + 1] = equipped end
+  local other = M.Codes and M.Codes.AlternateDeckName() or nil
+  if other and (not equipped or other ~= equipped.name) then
+    local d = read(other)
+    if d then list[#list + 1] = d end
+  end
+  -- Which of the two is the Alt deck: the one picked as Alt in the Export
+  -- tab, else the one you were not on when you pressed Start.
+  local eqName = equipped and equipped.name or nil
+  local altName = other
+  if M.settings.altDeck and (M.settings.altDeck == eqName or M.settings.altDeck == other) then altName = M.settings.altDeck
+  elseif M.settings.combatDeck and M.settings.combatDeck == other then altName = eqName
+  elseif startDeck and startDeck == other then altName = eqName end
+  return list, altName
 end
 
 local function finishTester(now, stopped)
@@ -139,22 +182,21 @@ end
 
 function M.TesterStart()
   local now = M.Now()
-  if M.tester and not M.tester.ended and M.tester.start then finishTester(now, true) end
+  if M.tester and not M.tester.ended and M.tester.start then
+    M.Say("A run is in progress: it lasts the full 5:00. Use Reset to cancel it first.")
+    return
+  end
   M.tester = Model.New(Model.CHECKPOINTS)
+  M.tester.startDeck = M.Export.CurrentDeckName()
   M.View.SelectSnapshot(nil)
-  M.Say("Build Tester ready: start hitting the Training Dummy. Snapshots at 1, 3 and 5 minutes.")
+  M.Say("Build Tester ready: start hitting the Training Dummy. The run lasts 5:00 from your first hit; KPIs at 1, 3 and 5 minutes.")
   M.View.Tick(now)
 end
 
-function M.TesterStop()
-  local s = M.tester
-  if not s or s.ended then return end
-  if s.start then finishTester(M.Now(), true); M.Say("Build Tester stopped.")
-  else M.tester = nil; M.Say("Build Tester cancelled.") end
-  M.View.Tick(M.Now())
-end
-
+-- No Stop (owner, 2026-10-30): every kept run lasts the full 5:00, the
+-- clock never pauses; Reset cancels a run.
 function M.TesterReset()
+  if M.tester and not M.tester.ended and M.tester.start then M.Say("Build Tester run cancelled.") end
   M.tester = nil
   M.View.SelectSnapshot(nil)
   M.View.Tick(M.Now())
@@ -195,7 +237,18 @@ local function onCombatEvents(events, dropped)
   end
   for _, s in ipairs({ M.fight, t }) do
     if s and s.start then
-      if not s.snap then s.snap = M.Snapshot() end
+      if not s.snap then
+        s.snap = M.Snapshot()
+        if s.rec then
+          local okL, layouts, altName = pcall(M.DeckLayouts, s.startDeck)
+          if okL then
+            s.layouts, s.altDeck = layouts, altName
+            s.layoutNames = {}
+            for _, d in ipairs(layouts) do s.layoutNames[#s.layoutNames + 1] = d.name end
+          end
+          s.rec.lastDeck = M.deckName
+        end
+      end
       if type(dropped) == "number" and dropped > 0 then s.dropped = s.dropped + dropped end
     end
   end
@@ -204,8 +257,15 @@ end
 function ShroudOnCombatEvents(events, dropped) guard("combat lines", onCombatEvents, events, dropped) end
 
 -- Focus lost between two frames: the estimate of each cast's focus cost.
+local lastFrame = nil
 local function onUpdate()
   local f = ShroudPlayerCurrentFocus
+  local now = M.Now()
+  local t = M.tester
+  if t and t.rec and t.start and not t.ended then
+    Model.FocusSample(t, now, M.lastFocus, f, M.maxFocus, lastFrame and (now - lastFrame) or nil)
+  end
+  lastFrame = now
   if type(f) == "number" and type(M.lastFocus) == "number" and f < M.lastFocus - 0.5 then
     local now = M.Now()
     Model.AddFocusDrop(M.fight, now, M.lastFocus - f)
@@ -235,6 +295,10 @@ local function tickModel()
   M.diag.ticks = M.diag.ticks + 1
   M.diag.lastTickAt = now
   M.deckName = M.Export.CurrentDeckName()
+  local okV, v = pcall(ShroudGetPlayerVitals)
+  if okV and type(v) == "table" and type(v.maxFocus) == "number" then M.maxFocus = v.maxFocus end
+  local tt = M.tester
+  if tt and tt.rec and tt.start and not tt.ended then Model.FocusLevel(tt, now, ShroudPlayerCurrentFocus, M.maxFocus) end
   if not M.fight then M.fight = Model.New(nil); M.diag.restarts = M.diag.restarts + 1 end
   local f = M.fight
   if Model.InCombat(f) then
@@ -304,10 +368,9 @@ local function command(args)
   rest = string.lower(rest or "")
   if cmd == "" then M.View.Toggle()
   elseif cmd == "tester" or cmd == "test" then
-    if rest == "stop" then M.TesterStop()
-    elseif rest == "reset" then M.TesterReset()
+    if rest == "reset" or rest == "stop" then M.TesterReset()
     elseif rest == "start" or rest == "" then M.TesterStart(); M.View.Open("tester")
-    else M.Say("Use /tota tester start, stop or reset.") end
+    else M.Say("Use /tota tester start or reset.") end
   elseif cmd == "export" then M.View.Open("export")
   elseif cmd == "setup" then M.View.Open("hud")
   elseif cmd == "hud" then M.View.SetHudShown(not M.settings.hud)

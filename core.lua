@@ -5,16 +5,15 @@
 TotaMeter = TotaMeter or {}
 local M = TotaMeter
 
-M.VERSION = "0.6.4"
+M.VERSION = "0.7.0"
 
 -- Slash commands (owner, 2026-10-30: /tota instead of /totameter), listed in
 -- the Setup tab and in the game's /help.
 M.CMD = "tota"
 M.COMMAND_LIST = {
   { "/tota", "Open or close the TotA Meter window" },
-  { "/tota tester start", "Start a Build Tester run (snapshots at 1, 3 and 5 minutes)" },
-  { "/tota tester stop", "End the Build Tester run now and keep it" },
-  { "/tota tester reset", "Clear the Build Tester run" },
+  { "/tota tester start", "Start a Build Tester run: 5:00 from your first hit, KPIs at 1, 3 and 5 minutes" },
+  { "/tota tester reset", "Cancel or clear the Build Tester run" },
   { "/tota export", "Open the Export tab (codes for Tools of the Avatar)" },
   { "/tota setup", "Open this Setup tab" },
   { "/tota hud", "Show or hide the HUD" },
@@ -48,6 +47,29 @@ function M.Sheet()
     sheetTexture = (ok and type(tex) == "number") and tex or -1
   end
   return sheetTexture >= 0 and sheetTexture or nil
+end
+
+-- KPI icons (0.7.0): one picture of 8 x 4 frames of 64 px (kpis.png), the
+-- frames in this order, left to right then top to bottom.
+M.KPI_SHEET_FILE = M.SLUG .. "/kpis.png"
+M.KPI_SHEET = { "dps", "peakBurst", "opener", "rampUp", "killClock", "avgHit", "avgCrit", "critPower",
+  "critRate", "critGain", "tempo", "tempoEfficiency", "castGap", "deckUse", "rotationDepth", "lockedShare",
+  "altShare", "consistency", "spread", "downtime", "holdRatio", "trend", "focusSpent", "focusLevel",
+  "focusBalance", "focusRunway", "starved", "damagePerFocus", "focusPerCast" }
+M.KPI_SHEET_COLS, M.KPI_SHEET_ROWS = 8, 4
+local kpiIndex = {}
+for i, n in ipairs(M.KPI_SHEET) do kpiIndex[n] = i end
+local kpiTexture = nil
+function M.KpiIcon(name)
+  if kpiTexture == nil then
+    local ok, tex = pcall(ShroudLoadTexture, M.KPI_SHEET_FILE)
+    kpiTexture = (ok and type(tex) == "number") and tex or -1
+  end
+  local i = kpiIndex[name]
+  if kpiTexture < 0 or not i then return nil end
+  local col, row = (i - 1) % M.KPI_SHEET_COLS, math.floor((i - 1) / M.KPI_SHEET_COLS)
+  return { tex = kpiTexture, uv = { col / M.KPI_SHEET_COLS, row / M.KPI_SHEET_ROWS, 1 / M.KPI_SHEET_COLS, 1 / M.KPI_SHEET_ROWS },
+    key = "k:" .. name }
 end
 
 -- An icon: { tex, uv = { x, y, w, h }, key }, or nil when the sheet is missing.

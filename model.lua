@@ -52,7 +52,81 @@ function Model.New(checkpoints)
     petLastAct = nil, petIntervalSum = 0, petIntervals = 0,
     ignored = 0, dropped = 0, nameMismatch = 0,
   }
+  if checkpoints then s.rec = Model.NewRecord(s.testLength) end
   return s
+end
+
+-- ---------------------------------------------------------------------------
+-- Build Tester record (0.7.0, owner's KPIs of 2026-10-30): what the KPIs in
+-- kpi.lua are computed from. Per second of the run (index 0 = the first
+-- second): damage from you and your pet, casts, focus spent and regained,
+-- seconds below 10% focus, the last focus read, damage and seconds on the Alt
+-- deck. Per window (1 = 0-1 min, 2 = 1-3, 3 = 3-5) and per skill: the sums
+-- the hit-quality and focus KPIs need. Plus every cast's time and the swaps.
+-- ---------------------------------------------------------------------------
+
+Model.WINDOW_ENDS = { 60, 180, 300 }
+
+function Model.NewRecord(length)
+  local n = math.floor(length or 300)
+  local function zeros() local a = {} for i = 0, n - 1 do a[i] = 0 end return a end
+  return { n = n, dmg = zeros(), casts = zeros(), spent = zeros(), gained = zeros(), starved = zeros(),
+    altDmg = zeros(), altSecs = zeros(), focus = {}, maxFocus = 0, castTimes = {}, swaps = {}, lastDeck = nil,
+    win = { {}, {}, {} } }
+end
+
+function Model.WindowOf(secs)
+  for i, e in ipairs(Model.WINDOW_ENDS) do if secs < e then return i end end
+  return #Model.WINDOW_ENDS
+end
+
+-- The second index of time t in a run, or nil outside it.
+local function secOf(s, t)
+  if not s.rec or not s.start then return nil end
+  local i = math.floor(t - s.start)
+  if i < 0 then i = 0 end
+  if i >= s.rec.n then return nil end
+  return i
+end
+
+local function winSkill(s, t, r)
+  local w = s.rec.win[Model.WindowOf(t - s.start)]
+  local k = w[r.key]
+  if not k then
+    k = { key = r.key, name = r.name, owner = r.owner, runeId = r.runeId, damage = 0, hitSum = 0, hitN = 0, critSum = 0, critN = 0,
+      glancing = 0, ultraslay = 0, uses = 0, focus = 0, focusCasts = 0 }
+    w[r.key] = k
+  end
+  return k
+end
+
+-- The focus level of the current second (from the 0.5 s tick, so Focus Level
+-- has a value even on frames where focus didn't change).
+function Model.FocusLevel(s, t, focus, maxFocus)
+  local rec = s.rec
+  if not rec or s.ended or not s.start or type(focus) ~= "number" then return end
+  local i = secOf(s, t)
+  if not i then return end
+  if type(maxFocus) == "number" and maxFocus > rec.maxFocus then rec.maxFocus = maxFocus end
+  rec.focus[i] = focus
+end
+
+-- Focus read every frame: drops (casts) and rises (regeneration), time below
+-- 10% of the maximum, and the last value of each second.
+function Model.FocusSample(s, t, prev, focus, maxFocus, dt)
+  local rec = s.rec
+  if not rec or s.ended or not s.start or type(focus) ~= "number" then return end
+  local i = secOf(s, t)
+  if not i then return end
+  if type(maxFocus) == "number" and maxFocus > rec.maxFocus then rec.maxFocus = maxFocus end
+  if type(prev) == "number" then
+    if focus < prev - 0.5 then rec.spent[i] = rec.spent[i] + (prev - focus)
+    elseif focus > prev then rec.gained[i] = rec.gained[i] + (focus - prev) end
+  end
+  if rec.maxFocus > 0 and focus < 0.1 * rec.maxFocus and type(dt) == "number" and dt > 0 and dt < 1 then
+    rec.starved[i] = rec.starved[i] + dt
+  end
+  rec.focus[i] = focus
 end
 
 -- The moment the session's numbers run to: its end, or `now`, never past a test's length.
@@ -215,7 +289,15 @@ function Model.Add(s, e, ctx)
       if special then special.uses = special.uses + 1 end
       local f = claimFocus(s, t)
       if f then r.focus = r.focus + f; r.focusCasts = r.focusCasts + 1 end
+      local i = secOf(s, t)
+      if i then
+        s.rec.casts[i] = s.rec.casts[i] + 1
+        s.rec.castTimes[#s.rec.castTimes + 1] = t - s.start
+        local k = winSkill(s, t, r)
+        if f then k.focus = k.focus + f; k.focusCasts = k.focusCasts + 1 end
+      end
     end
+    if secOf(s, t) then winSkill(s, t, r).uses = winSkill(s, t, r).uses + 1 end
   end
   pruneFocus(s, t)
 
@@ -249,6 +331,18 @@ function Model.Add(s, e, ctx)
   d.damage = d.damage + amount
   s.decks[deck] = d
   if special then special.damage = special.damage + amount end
+  local i = secOf(s, t)
+  if i then
+    local rec = s.rec
+    rec.dmg[i] = rec.dmg[i] + amount
+    if s.altDeck and ctx.deck == s.altDeck then rec.altDmg[i] = rec.altDmg[i] + amount end
+    local k = winSkill(s, t, r)
+    k.damage = k.damage + amount
+    if kind == "hit" then k.hitSum = k.hitSum + amount; k.hitN = k.hitN + 1
+    elseif kind == "critical" then k.critSum = k.critSum + amount; k.critN = k.critN + 1
+    elseif kind == "glancing" then k.glancing = k.glancing + 1
+    elseif kind == "ultraslay" then k.ultraslay = k.ultraslay + 1 end
+  end
   return "counted"
 end
 
@@ -259,6 +353,13 @@ function Model.DeckTick(s, deck, seconds, now)
   local d = s.decks[deck] or { damage = 0, seconds = 0 }
   d.seconds = d.seconds + seconds
   s.decks[deck] = d
+  local rec = s.rec
+  local i = now and secOf(s, now) or nil
+  if rec and i then
+    if s.altDeck and deck == s.altDeck then rec.altSecs[i] = rec.altSecs[i] + seconds end
+    if rec.lastDeck and rec.lastDeck ~= deck then rec.swaps[#rec.swaps + 1] = now - s.start end
+    rec.lastDeck = deck
+  end
 end
 
 -- Ends the session at `now` (a Build Tester run: at most at its length).

@@ -2,7 +2,7 @@
 
 DPS meter and Build Tester for **Tools of the Avatar**. It counts only **your** damage and **your pet's**; other players and party members are ignored.
 
-Version 0.6.4 · slug `tota-meter` · minimum Lua API 25.
+Version 0.7.0 · slug `tota-meter` · minimum Lua API 25.
 
 ## Install
 1. Create a folder named `tota-meter` in your Lua folder (type `/lua path` in game to find it) and copy
@@ -17,7 +17,19 @@ Open it with the **Menu** button on the HUD (or `/tota`). The window has four ta
 Cumulative until you press **Reset meter**: every fight adds up, and DPS is measured over combat time (the time between fights is not counted). DPS (and the last 5 seconds), peak DPS (best 5 seconds), total damage, combat time and number of fights, critical rate, casts per minute, pet share, missed attacks; per skill and pet attack: damage and share, highest hit, uses and uses per minute, critical, glancing and ultraslay rates, and **focus per cast** (estimate); damage by type, combos, Combat / Alt deck split, your attack speed and crit at the start, and any potion or food active.
 
 ## Build Tester
-Press **Start**, then hit the Training Dummy. The run starts with your first hit and keeps counting; every number is recorded at **1, 3 and 5 minutes**, and the run stops at 5 minutes. Compare the three snapshots side by side and open the skills of any of them. **Stop** ends a run early, **Reset** clears it. The last 10 runs are kept.
+Press **Start**, then hit the Training Dummy. The run starts with your first hit and lasts **5:00**: the clock never pauses, and **Reset** cancels a run. The last 10 runs are kept, with their KPIs.
+
+The **Performance** table shows 29 KPIs, each with its icon (hover a KPI for what it means), for every window on its own (**0-1**, **1-3**, **3-5** minutes) and from your first hit (**@1**, **@3**, **@5**). The minute is for burst (most creatures die in under a minute), 3 minutes for stability once cooldowns run, 5 minutes for focus sustainability. Damage counts you and your pet, combos included.
+
+| Group | KPIs |
+|---|---|
+| Damage | DPS, Peak Burst, Opener DPS, Ramp-up Time, Kill Clock 10k / 25k / 50k |
+| Hit quality | Average Hit, Average Crit, Crit Power, Crit Rate, Crit Gain |
+| Rhythm and usability | Tempo, Tempo Efficiency, Cast Gap, Deck Use, Rotation Depth, Locked Share, Alt Deck Share |
+| Stability | Consistency, Spread, Downtime, Hold Ratio, Trend |
+| Focus and sustainability | Focus Spent, Focus Level, Focus Balance, Focus Runway, Starved Time, Damage per Focus, Focus per Cast |
+
+Under it, the skills table for any span (average hit and crit, crit power and rate, uses, focus per cast, damage per focus), the runes of your deck you never cast, and the details (damage by type, combos, decks, your stats at the start). The formulas are in `build-tester-kpis.md` of the Tools of the Avatar project. Deck Use and Locked Share need the game's Lua API 56. The Alt deck is the one picked in the Export tab, else the one you were not on when you pressed Start.
 
 ## Export
 The Export tab makes three codes for **Import** on Tools of the Avatar (open your build, then its ⋯ menu → Import). The game has no copy button for add-ons, so copy each code from its box: click in it, **Ctrl+A**, then **Ctrl+C**, and paste it in the box of the same name on the site.
@@ -49,7 +61,7 @@ Type them in the chat box; the Setup tab lists them too.
 | Command | What it does |
 |---|---|
 | `/tota` | Open or close the window |
-| `/tota tester start` · `stop` · `reset` | Start a Build Tester run, end it now, or clear it |
+| `/tota tester start` · `reset` | Start a Build Tester run, or cancel / clear it |
 | `/tota export` | Open the Export tab |
 | `/tota setup` | Open the Setup tab |
 | `/tota hud` | Show or hide the HUD |
