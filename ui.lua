@@ -25,12 +25,24 @@ local function iconImage(spec, size, style)
   return UI.Image{ texture = spec.tex, uv = spec.uv, width = size, height = size, style = st }
 end
 
--- Shows `spec` in `img`; `holder` remembers what it shows so nothing changes needlessly.
-local function setIcon(holder, img, spec)
-  if not img or not spec or holder.iconKey == spec.key then return end
-  img:SetTexture(spec.tex)
+-- Shows `spec` in `img`; `holder` remembers what it shows so nothing changes
+-- needlessly. A texture the game no longer knows (an id from another session)
+-- is refused once, then the metric icon `fallback` is shown instead and that
+-- id is not tried again. Returns false when `spec` was refused.
+local badTextures = {}
+local function setIcon(holder, img, spec, fallback)
+  if not img or not spec then return true end
+  if badTextures[spec.tex] and fallback then spec = fallback end
+  if holder.iconKey == spec.key then return true end
+  local ok = pcall(img.SetTexture, img, spec.tex)
+  if not ok then
+    badTextures[spec.tex] = true
+    if fallback and fallback ~= spec then return setIcon(holder, img, fallback) and false end
+    return false
+  end
   img:SetUV(spec.uv[1], spec.uv[2], spec.uv[3], spec.uv[4])
   holder.iconKey = spec.key
+  return true
 end
 
 local function heading(text)
@@ -100,7 +112,7 @@ local function fillGrid(rows, data, cellsOf, iconOf)
     if item then
       local cells = cellsOf(item, i)
       for j, c in ipairs(r.cells) do c:SetText(cells[j] or "") end
-      if r.icon and iconOf then setIcon(r, r.icon, iconOf(item)) end
+      if r.icon and iconOf then setIcon(r, r.icon, iconOf(item), M.MetricIcon("rune")) end
     end
     r.row:SetVisible(item ~= nil)
   end
@@ -340,7 +352,7 @@ local function refreshHud(now)
     local on = cols > 0 and k ~= nil and i <= count
     if on then
       r.name:SetText((k.owner == "Pet" and "Pet: " or "") .. k.name)
-      setIcon(r, r.icon, M.SkillIcon(k))
+      setIcon(r, r.icon, M.SkillIcon(k), M.MetricIcon("rune"))
       for j, c in ipairs(H.cols) do
         local text = ""
         if c.key == "share" then text = M.Pct(k.share, 1)
@@ -357,7 +369,8 @@ local function refreshHud(now)
     local last = M.loot.items[1]
     if last then
       L.name:SetText(last.name .. (last.quantity > 1 and ("  x" .. last.quantity) or ""))
-      setIcon(L, L.img, last.icon and { tex = last.icon, uv = { 0, 0, 1, 1 }, key = "i:" .. last.icon } or M.MetricIcon("total"))
+      local spec = last.icon and { tex = last.icon, uv = { 0, 0, 1, 1 }, key = "i:" .. last.icon } or M.MetricIcon("total")
+      if not setIcon(L, L.img, spec, M.MetricIcon("total")) then last.icon = nil end
     else
       L.name:SetText("No artifact yet")
       setIcon(L, L.img, M.MetricIcon("total"))
@@ -833,7 +846,15 @@ function View.Refresh(now)
   if fn and pages[current] then fn(now) end
 end
 
+-- The HUD and the open page are refreshed separately, so a problem in one
+-- never freezes the other (0.6.2), and an error never reaches the game.
+local function guarded(where, fn, now)
+  if M.Guard then return M.Guard(where, fn, now) end
+  local ok, err = pcall(fn, now)
+  if not ok then M.Say("Error in " .. where .. ": " .. tostring(err)) end
+  return ok
+end
 function View.Tick(now)
-  refreshHud(now)
-  View.Refresh(now)
+  guarded("HUD", refreshHud, now)
+  guarded("window", View.Refresh, now)
 end

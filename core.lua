@@ -5,7 +5,7 @@
 TotaMeter = TotaMeter or {}
 local M = TotaMeter
 
-M.VERSION = "0.6.1"
+M.VERSION = "0.6.2"
 M.SLUG = "tota-meter"
 
 -- The gauge icon shipped with the package (store icon: icon.png).
@@ -211,8 +211,14 @@ M.loot = emptyLoot()
 
 -- The loot list is a character saved variable, so /lua reload and relogs keep
 -- it until the meter is reset (it used to live in memory only).
+-- Item icons are texture ids the game registers for the current session only
+-- (0.6.2: a saved id shown after a reload or relog raised "no texture with id"
+-- on every HUD refresh until the game turned the add-on off). So icons are
+-- kept in memory and never saved.
 function M.SaveLoot()
-  ShroudSetSavedVar("loot", M.loot, "character")
+  local items = {}
+  for i, it in ipairs(M.loot.items) do items[i] = { name = it.name, quantity = it.quantity, kind = it.kind } end
+  ShroudSetSavedVar("loot", { items = items, counts = M.loot.counts }, "character")
   ShroudFlushSavedVars()
 end
 
@@ -223,8 +229,7 @@ function M.LoadLoot()
   for _, it in ipairs(saved.items) do
     if type(it) == "table" and type(it.name) == "string" and M.LOOT_LABEL[it.kind] and #M.loot.items < M.LOOT_KEEP then
       local qty = (type(it.quantity) == "number" and it.quantity > 0) and it.quantity or 1
-      M.loot.items[#M.loot.items + 1] = { name = it.name, quantity = qty, kind = it.kind,
-        icon = (type(it.icon) == "number" and it.icon >= 0) and it.icon or nil }
+      M.loot.items[#M.loot.items + 1] = { name = it.name, quantity = qty, kind = it.kind }   -- no icon: see SaveLoot
     end
   end
   if type(saved.counts) == "table" then
