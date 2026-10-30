@@ -1,7 +1,9 @@
 -- TotA Meter: export to Tools of the Avatar (owner, 2026-10-27).
 -- One file holds the Combat deck (required), the Alt deck (optional), the
 -- skills with their XP, the specializations, the pooled XP and the last test
--- results. The player uploads it on the build page; the site validates it.
+-- results. Since 0.6.0 the Export tab shows three codes to copy instead (see
+-- codes.lua); the file stays as a fallback (the site's Import still reads it),
+-- now with each deck's share code when the game has Lua API 56.
 -- No character name is written (character names are private on the site).
 
 local M = TotaMeter
@@ -69,7 +71,12 @@ local function deckTable(name, byName)
       if not skill then unmatched[#unmatched + 1] = cname end
     end
   end
-  return { name = name, cards = (#cards > 0) and cards or M.Json.ARRAY }, unmatched
+  local code = nil
+  if M.Codes and M.Codes.HasDeckApi() then
+    local ok, c = pcall(ShroudGetDeckCode, name)
+    if ok and type(c) == "string" then code = c end
+  end
+  return { name = name, code = code, cards = (#cards > 0) and cards or M.Json.ARRAY }, unmatched
 end
 
 -- Builds the export table. combat: deck name (required); alt: deck name or nil.
@@ -145,7 +152,7 @@ function Export.Run(combat, alt, includeSkills)
   if not ok then return false, where end
   local msg = "Saved " .. (tbl.decks.alt and "Combat and Alt decks" or "Combat deck") ..
     (includeSkills and (", " .. #tbl.skills .. " skills and XP") or "") .. " to " .. where ..
-    ". Upload this file on your build's page on Tools of the Avatar."
+    ". On Tools of the Avatar: open your build, then its ... menu, Import, \"Use the export file instead\"."
   if #tbl.unmatched > 0 then msg = msg .. " " .. #tbl.unmatched .. " card(s) could not be matched to a skill." end
   return true, msg
 end

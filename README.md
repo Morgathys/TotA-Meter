@@ -2,7 +2,7 @@
 
 DPS meter and Build Tester for **Tools of the Avatar**. It counts only **your** damage and **your pet's**; other players and party members are ignored.
 
-Version 0.5.2 · slug `tota-meter` · minimum Lua API 25.
+Version 0.6.0 · slug `tota-meter` · minimum Lua API 25.
 
 ## Install
 1. Create a folder named `tota-meter` in your Lua folder (type `/lua path` in game to find it) and copy
@@ -20,7 +20,17 @@ Cumulative until you press **Reset meter**: every fight adds up, and DPS is meas
 Press **Start**, then hit the Training Dummy. The run starts with your first hit and keeps counting; every number is recorded at **1, 3 and 5 minutes**, and the run stops at 5 minutes. Compare the three snapshots side by side and open the skills of any of them. **Stop** ends a run early, **Reset** clears it. The last 10 runs are kept.
 
 ## Export
-Pick your Combat deck and, if you like, your Alt deck; choose whether to include your skill levels, XP and specializations; press **Export**. The file `tota_export.json` is saved in your Lua folder (`/lua path`). On Tools of the Avatar, open your build, then ⋯ → **Import** and choose the file; paste the deck codes copied in game as well to keep the exact slot layout (the game doesn't tell add-ons which slots are locked or dynamic). It holds no character name.
+The Export tab makes three codes for **Import** on Tools of the Avatar (open your build, then its ⋯ menu → Import). The game has no copy button for add-ons, so copy each code from its box: click in it, **Ctrl+A**, then **Ctrl+C**, and paste it in the box of the same name on the site.
+
+| Code | What it replaces on the site | Size |
+|---|---|---|
+| **Decks** (`TOTA1D:`) | the Combat and Alt decks, with their exact locked and dynamic slots | ~175 characters |
+| **Adventurer XP** (`TOTA1A:`) | every adventurer skill's level, the XP inside it, and your total adventurer XP | ~530 characters |
+| **Producer XP** (`TOTA1P:`) | the same for producer skills | ~400 characters |
+
+Each code replaces only its own part of the build, so you can paste one, two or all three. Goal levels are kept. The Combat deck defaults to your equipped deck and the Alt deck to your alternate deck (the one the swap key switches to); pick others in the dropdowns. No character name is included.
+
+The Decks code needs the game's Lua API 56 or later. **Save tota_export.json** still writes the old file (now with each deck's exact layout); on the site use Import → *Use the export file instead*.
 
 ## HUD
 Choose its lines (DPS, peak DPS, total damage, critical rate, skill damage share, skill max hit, skill uses per minute) and how many skills it lists. Move it by the grip at its top-left corner (shown while Lock Status Movement is off in the Interface options) or with the buttons on this tab.
@@ -34,6 +44,6 @@ The HUD's bottom line (as tall as the item's icon) shows the last item of note y
 Items taken out of your bank or a chest count as gained too: the game reports them the same way.
 
 ## Commands
-`/totameter` (window) · `tester start|stop|reset` · `export` · `hud`
+`/totameter` (window) · `tester start|stop|reset` · `export` (opens the Export tab) · `hud`
 
 Focus per cast is an estimate: the focus you lose just before each hit.

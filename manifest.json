@@ -2,18 +2,20 @@
   "manifest_version": 1,
   "slug": "tota-meter",
   "name": "TotA Meter",
-  "version": "0.5.2",
+  "version": "0.6.0",
   "files": [
     "core.lua",
     "combos.lua",
+    "skilltable.lua",
     "json.lua",
     "model.lua",
+    "codes.lua",
     "export.lua",
     "ui.lua",
     "main.lua"
   ],
   "icon": "icon.png",
   "min_api_version": 25,
-  "description": "DPS meter and Build Tester for you and your pet: DPS and peak, damage per skill, max hit, uses per minute, crits, estimated focus per cast, combos, damage by type and Combat/Alt deck split, with snapshots at 1, 3 and 5 minutes on the Training Dummy. Tracks artifacts, Crowns of the Obsidians and blueprints you loot. Exports your decks, skill levels and XP to Tools of the Avatar.",
+  "description": "DPS meter and Build Tester for you and your pet: DPS and peak, damage per skill, max hit, uses per minute, crits, estimated focus per cast, combos, damage by type and Combat/Alt deck split, with snapshots at 1, 3 and 5 minutes on the Training Dummy. Tracks artifacts, Crowns of the Obsidians and blueprints you loot. Makes three codes to paste in Import on Tools of the Avatar: your Combat and Alt decks with their exact slots, your adventurer skills and XP, your producer skills and XP.",
   "author": "Tools of the Avatar"
 }

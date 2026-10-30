@@ -593,30 +593,81 @@ local function rememberExport()
   M.SaveSettings()
 end
 
--- Deck lists change outside the add-on (no event), so they are read on every open.
-local function refreshExportChoices()
+-- Codes to copy (0.6.0): the game has no clipboard call, so each code sits in
+-- a text box the player selects and copies (Ctrl+A, Ctrl+C).
+local CODE_BOXES = {
+  { "decks", "Decks", "Combat and Alt decks with their exact slots" },
+  { "adventurer", "Adventurer XP", "adventurer skill levels, the XP inside them and your total adventurer XP" },
+  { "producer", "Producer XP", "producer skill levels, the XP inside them and your total producer XP" },
+}
+
+local function setStatus(el, ok, msg)
+  el:SetText(msg or "")
+  el:RemoveClass(ok and "bad" or "good")
+  el:AddClass(ok and "good" or "bad")
+  el:SetVisible((msg or "") ~= "")
+end
+
+local function setCode(kind, code, note, ok)
+  local box = P.export.codes[kind]
+  box.value = code or ""
+  box.field:SetText(box.value)
+  box.note:SetText(note or "")
+  box.note:RemoveClass(ok and "bad" or "dim")
+  box.note:AddClass(ok and "dim" or "bad")
+end
+
+local function makeCodes()
+  local e = P.export
+  local combat, alt = e.combat:GetValue(), e.alt:GetValue()
+  combat = (combat ~= View.NO_DECK) and combat or nil
+  alt = (alt ~= View.NO_ALT) and alt or nil
+  local d, why = M.Codes.Decks(combat, alt)
+  setCode("decks", d, d and (#d .. " characters  ·  " .. (alt and "Combat and Alt decks" or "Combat deck")) or why, d ~= nil)
+  local skills = ShroudGetSkills()
+  for _, kind in ipairs({ "adventurer", "producer" }) do
+    local okCall, code, info = pcall(M.Codes.Xp, kind, skills)
+    if not okCall then code, info = nil, tostring(code) end
+    if code then
+      setCode(kind, code, #code .. " characters  ·  " .. info.skills .. " skills" ..
+        ((info.missing > 0 and kind == "adventurer") and ("  ·  " .. info.missing .. " new game skill(s) the site can't take yet") or ""), true)
+    else
+      setCode(kind, nil, info, false)
+    end
+  end
+  setStatus(e.status, true, "")
+end
+
+-- Deck lists change outside the add-on (no event), so they are read on every
+-- open. Default: the decks picked last time, else the equipped deck as Combat
+-- and the alternate deck (the swap key's) as Alt.
+local function pickDecks(useCurrent)
   local e = P.export
   local names, dupes = M.Export.DeckNames()
+  local has = {}
+  for _, n in ipairs(names) do has[n] = true end
   local choices = (#names > 0) and names or { View.NO_DECK }
   e.combat:SetChoices(choices)
-  local want = M.settings.combatDeck
-  local ok = false
-  for _, n in ipairs(names) do if n == want then ok = true end end
-  if not ok then want = M.Export.CurrentDeckName() end
-  ok = false
-  for _, n in ipairs(names) do if n == want then ok = true end end
-  e.combat:SetValue(ok and want or choices[1])
+  local want = (not useCurrent and has[M.settings.combatDeck or ""]) and M.settings.combatDeck or M.Export.CurrentDeckName()
+  e.combat:SetValue(has[want or ""] and want or choices[1])
   e.alt:SetChoices({ View.NO_ALT })
   e.alt:SetValue(View.NO_ALT)
   refreshAlt()
-  if M.settings.altDeck then
-    for _, c in ipairs(e.alt:GetChoices()) do if c == M.settings.altDeck then e.alt:SetValue(c) end end
+  local altWant = (not useCurrent and M.settings.altDeck) or M.Codes.AlternateDeckName()
+  if altWant then
+    for _, c in ipairs(e.alt:GetChoices()) do if c == altWant then e.alt:SetValue(c) end end
   end
   e.skills:SetValue(M.settings.includeSkills)
   e.warn:SetText(#dupes > 0 and ("Several decks share a name (" .. table.concat(dupes, ", ") ..
-    "). The game can't tell them apart: rename them in game before exporting one of them.") or "")
+    "). The game can only tell them apart while one is equipped or set as your alternate deck: rename them in game if a code fails.") or "")
   e.warn:SetVisible(#dupes > 0)
-  e.status:SetText("")
+  rememberExport()
+end
+
+local function refreshExportChoices()
+  pickDecks(false)
+  setStatus(P.export.fileStatus, true, "")
+  makeCodes()
 end
 
 local function doExport()
@@ -624,9 +675,7 @@ local function doExport()
   rememberExport()
   local combat, alt = e.combat:GetValue(), e.alt:GetValue()
   local ok, msg = M.Export.Run((combat ~= View.NO_DECK) and combat or nil, (alt ~= View.NO_ALT) and alt or nil, M.settings.includeSkills)
-  e.status:SetText(msg)
-  e.status:RemoveClass(ok and "bad" or "good")
-  e.status:AddClass(ok and "good" or "bad")
+  setStatus(e.fileStatus, ok, msg)
   M.Say(msg)
 end
 
@@ -634,28 +683,55 @@ local function field(caption, control)
   return UI.Column{ style = { marginTop = 10 }, children = { label(caption, "dim", { fontSize = 12, marginBottom = 2 }), control } }
 end
 
+local function codeBox(spec)
+  local box = { value = "" }
+  -- The box shows the code; anything typed in it is put back (copying doesn't change it).
+  box.field = UI.TextField{ text = "", maxLength = M.Codes.MAX_LENGTH, placeholder = "Press Make codes",
+    style = { width = "100%" }, onChange = function(el, v) if v ~= box.value then el:SetText(box.value) end end }
+  box.note = label("", "dim", { fontSize = 11, marginTop = 2, whiteSpace = "wrap" })
+  P.export.codes[spec[1]] = box
+  return UI.Column{ style = { marginTop = 10 }, children = {
+    UI.Row{ style = { alignItems = "center" }, children = {
+      label(spec[2], "bright", { fontSize = 13 }),
+      label("  " .. spec[3], "dim", { fontSize = 11, flexGrow = 1 }) } },
+    box.field, box.note } }
+end
+
 local function buildExport()
   local e = P.export
-  e.combat = UI.Dropdown{ choices = { View.NO_DECK }, value = View.NO_DECK, onChange = function() refreshAlt(); rememberExport() end }
-  e.alt = UI.Dropdown{ choices = { View.NO_ALT }, value = View.NO_ALT, onChange = function() rememberExport() end }
+  e.codes = {}
+  e.combat = UI.Dropdown{ choices = { View.NO_DECK }, value = View.NO_DECK, onChange = function() refreshAlt(); rememberExport(); makeCodes() end }
+  e.alt = UI.Dropdown{ choices = { View.NO_ALT }, value = View.NO_ALT, onChange = function() rememberExport(); makeCodes() end }
   e.skills = UI.Toggle{ text = "Include skill levels, XP and specializations", value = true, onChange = function() rememberExport() end }
   e.warn = UI.Label{ text = "", class = "warning", visible = false, style = { whiteSpace = "wrap", marginTop = 8 } }
-  e.status = label("", "text", { whiteSpace = "wrap", marginTop = 10 })
+  e.status = label("", "text", { whiteSpace = "wrap", marginTop = 8 })
+  e.fileStatus = label("", "text", { whiteSpace = "wrap", marginTop = 8 })
+  local boxes = {}
+  for i, spec in ipairs(CODE_BOXES) do boxes[i] = codeBox(spec) end
   return UI.Column{ children = {
     label("Export to Tools of the Avatar", "title", { fontSize = 16 }),
-    label("Saves your decks, and if you like your skill levels and XP, in a file to upload on your build's page.", "dim",
+    label("Copy each code (click in its box, Ctrl+A, then Ctrl+C) and paste it in the same box of Import on your build (its ... menu). " ..
+      "Each code replaces only its own part of the build. No character name is included.", "dim",
       { whiteSpace = "wrap", fontSize = 12, marginTop = 2 }),
     UI.Column{ class = "inset", style = { padding = 12, marginTop = 10 }, children = {
-      field("Combat deck", e.combat),
-      field("Alt deck (optional)", e.alt),
-      UI.Row{ style = { marginTop = 12 }, children = { e.skills } },
+      UI.Row{ children = {
+        UI.Column{ style = { flexGrow = 1, marginRight = 8 }, children = { field("Combat deck", e.combat) } },
+        UI.Column{ style = { flexGrow = 1 }, children = { field("Alt deck (optional)", e.alt) } } } },
       e.warn,
       UI.Row{ style = { marginTop = 12 }, children = {
-        button("Export", doExport), button("Refresh decks", refreshExportChoices, { marginLeft = 6 }) } },
+        button("Make codes", makeCodes), button("Use equipped and alternate decks", function() pickDecks(true); makeCodes() end, { marginLeft = 6 }),
+        button("Refresh decks", refreshExportChoices, { marginLeft = 6 }) } },
+      boxes[1], boxes[2], boxes[3],
       e.status,
     } },
-    label("The file tota_export.json is saved in your Lua folder (type /lua path to open it). It holds no character name.",
-      "dim", { whiteSpace = "wrap", marginTop = 10, fontSize = 12 }),
+    UI.Column{ class = "inset", style = { padding = 12, marginTop = 10 }, children = {
+      label("Or save a file", "dim", { fontSize = 12 }),
+      UI.Row{ style = { alignItems = "center", marginTop = 6 }, children = { e.skills, label("", "dim", { flexGrow = 1 }),
+        button("Save tota_export.json", doExport) } },
+      label("Saved in your Lua folder (/lua path). On the site: Import, then \"Use the export file instead\".", "dim",
+        { whiteSpace = "wrap", fontSize = 11, marginTop = 4 }),
+      e.fileStatus,
+    } },
   } }
 end
 
