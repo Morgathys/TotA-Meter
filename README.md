@@ -2,7 +2,7 @@
 
 DPS meter and Build Tester for **Tools of the Avatar**. It counts only **your** damage and **your pet's**; other players and party members are ignored.
 
-Version 0.7.0 · slug `tota-meter` · minimum Lua API 25.
+Version 0.8.0 · slug `tota-meter` · minimum Lua API 25.
 
 ## Install
 1. Create a folder named `tota-meter` in your Lua folder (type `/lua path` in game to find it) and copy
@@ -39,6 +39,8 @@ The Export tab makes three codes for **Import** on Tools of the Avatar (open you
 | **Decks** (`TOTA1D:`) | the Combat and Alt decks, with their exact locked and dynamic slots | ~175 characters |
 | **Adventurer XP** (`TOTA1A:`) | every adventurer skill's level, the XP inside it, and your total adventurer XP | ~530 characters |
 | **Producer XP** (`TOTA1P:`) | the same for producer skills | ~400 characters |
+
+**Build Tester code** (`TOTA1T:`): under the three codes, pick a saved run (the last 10 are kept) and copy its code; a long run comes in **two parts** (copy both). On the site, paste it in your build's Deck Builder page → **Metrics & KPIs** → **Import a test**: every KPI, the 5-second timeline for the charts, your skills and the decks tested. A build keeps its last 5 tests.
 
 Each code replaces only its own part of the build, so you can paste one, two or all three. Goal levels are kept. The Combat deck defaults to your equipped deck and the Alt deck to your alternate deck (the one the swap key switches to); pick others in the dropdowns. No character name is included.
 

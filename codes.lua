@@ -294,3 +294,141 @@ function Codes.AlternateDeckName()
   local ok2, n = pcall(function() return d.name end)
   return (ok2 and type(n) == "string" and n ~= "") and n or nil
 end
+
+-- ---------------------------------------------------------------------------
+-- Build Tester code (0.8.0): one saved run for the site's Metrics & KPIs.
+--   TOTA1T:<base64url(zlib(payload))>, or, past MAX_PART characters, two
+--   parts "TOTA1T:1/2.<id>.<chunk>" and "TOTA1T:2/2.<id>.<chunk>" (id = 4
+--   characters shared by the parts; the chunks put together are the code).
+-- Payload (version 1), varints unless said; a "value" is 0 when absent, else
+-- zigzag(round(v * scale)) + 1:
+--   1, flags (1 = full 5:00, 2 = deck codes known), addon version (string),
+--   run date (string), Combat deck name, its code's Adler-32 + 1 (0 = none),
+--   Alt deck name, its Adler-32 + 1, max focus, attack speed x100, melee crit
+--   and spell crit in thousandths, potions/food count, lines dropped;
+--   spans (6: w1 w2 w3 c1 c3 c5), fields (count), then values span by span in
+--   Codes.TEST_FIELDS order; slices (count), then per slice damage, casts,
+--   focus spent, focus regained, focus level thousandths + 1 (0 = none), and
+--   a bit set of the slices on the Alt deck; skills (count), each kind (0 skill,
+--   1 combo or other rune, 2 pet attack, 3 the rest summed), rune id, name
+--   (string, empty for kind 0), damage, hit sum, hits, crit sum, crits, uses,
+--   claimed focus, casts that claimed focus; deck runes (count), each
+--   id * 2 + cast (1 = cast at least once).
+-- A string is a varint length then its bytes. The site's reader:
+-- src/kpicodes.js in the Tools of the Avatar repo (same field list).
+-- ---------------------------------------------------------------------------
+
+Codes.TEST_VERSION = 1
+Codes.MAX_PART = 1000
+Codes.TEST_SPANS = { "w1", "w2", "w3", "c1", "c3", "c5" }
+Codes.TEST_FIELDS = {
+  { "dps", 1 }, { "peakBurst", 1 }, { "opener", 1 }, { "rampUp", 1 }, { "kill1", 1 }, { "kill2", 1 }, { "kill3", 1 },
+  { "avgHit", 1 }, { "avgCrit", 1 }, { "critPower", 100 }, { "critRate", 1000 }, { "critGain", 1000 },
+  { "tempo", 10 }, { "tempoEfficiency", 1000 }, { "castGap", 10 }, { "castGapMax", 10 }, { "deckUse", 1000 },
+  { "rotationDepth", 1 }, { "lockedShare", 1000 }, { "bothShare", 1000 }, { "altShare", 1000 }, { "altTime", 1000 },
+  { "swaps", 1 }, { "consistency", 1000 }, { "spread", 1000 }, { "downtime", 1 }, { "downtimeMax", 1 },
+  { "holdRatio", 1000 }, { "trend", 1000 }, { "focusSpent", 1 }, { "focusPerMinute", 1 }, { "focusLevel", 1000 },
+  { "focusBalance", 10 }, { "runway", 1 }, { "starved", 10 }, { "damagePerFocus", 100 }, { "focusPerCast", 10 },
+}
+
+local function str(out, s)
+  s = tostring(s or "")
+  if #s > 120 then s = s:sub(1, 120) end
+  varint(out, #s)
+  for i = 1, #s do out[#out + 1] = s:byte(i) end
+end
+
+local function value(out, v, scale)
+  if type(v) ~= "number" or v ~= v or v == math.huge or v == -math.huge then out[#out + 1] = 0 return end
+  local n = floor(v * (scale or 1) + 0.5)
+  local z = (n >= 0) and (2 * n) or (-2 * n - 1)
+  varint(out, z + 1)
+end
+
+local function adler(s)
+  local a, b = 1, 0
+  for i = 1, #s do a = (a + s:byte(i)) % 65521; b = (b + a) % 65521 end
+  return b * 65536 + a
+end
+Codes.Adler = adler
+
+-- The payload bytes of a saved run (M.tests entry).
+function Codes.TestPayload(run)
+  local out = {}
+  varint(out, Codes.TEST_VERSION)
+  local codes = run.deckCodes or {}
+  local combat, alt = nil, nil
+  for _, d in ipairs(codes) do if d.alt then alt = d else combat = combat or d end end
+  varint(out, (run.stopped and 0 or 1) + ((#codes > 0) and 2 or 0))
+  str(out, M.VERSION)
+  str(out, run.when)
+  str(out, combat and combat.name or "")
+  varint(out, combat and (adler(combat.code) + 1) or 0)
+  str(out, alt and alt.name or "")
+  varint(out, alt and (adler(alt.code) + 1) or 0)
+  local st = run.stats or {}
+  varint(out, floor(tonumber(run.maxFocus) or 0))
+  value(out, st.AttackSpeed, 100)
+  value(out, st.WeaponCritBonus, 1000)
+  value(out, st.SpellCriticalChanceBonus, 1000)
+  varint(out, #(st.consumables or {}))
+  varint(out, floor(tonumber(run.dropped) or 0))
+  local k = run.kpis or {}
+  varint(out, #Codes.TEST_SPANS)
+  varint(out, #Codes.TEST_FIELDS)
+  for _, span in ipairs(Codes.TEST_SPANS) do
+    local r = k[span] or {}
+    for _, f in ipairs(Codes.TEST_FIELDS) do
+      local v = r[f[1]]
+      local kc = r.killClock
+      if f[1] == "kill1" then v = kc and kc[1] elseif f[1] == "kill2" then v = kc and kc[2] elseif f[1] == "kill3" then v = kc and kc[3] end
+      if (f[1]:sub(1, 4) == "kill") and type(v) == "number" and v < 0 then v = nil end
+      value(out, v, f[2])
+    end
+  end
+  local tl = run.timeline or {}
+  varint(out, #tl)
+  for _, sl in ipairs(tl) do
+    varint(out, floor((sl.d or 0) + 0.5)); varint(out, sl.c or 0)
+    varint(out, floor((sl.sp or 0) + 0.5)); varint(out, floor((sl.g or 0) + 0.5))
+    varint(out, sl.f and (sl.f + 1) or 0)
+  end
+  local byte, bit = 0, 1
+  for i, sl in ipairs(tl) do
+    if sl.alt then byte = byte + bit end
+    bit = bit * 2
+    if bit == 256 or i == #tl then out[#out + 1] = byte; byte, bit = 0, 1 end
+  end
+  local sk = run.skills or {}
+  varint(out, #sk)
+  for _, s in ipairs(sk) do
+    varint(out, s.kind or 0); varint(out, s.id or 0); str(out, (s.kind or 0) ~= 0 and s.name or "")
+    for _, f in ipairs({ "damage", "hitSum", "hitN", "critSum", "critN", "uses", "focus", "focusCasts" }) do
+      varint(out, floor((tonumber(s[f]) or 0) + 0.5))
+    end
+  end
+  local dr = run.deckRunes or {}
+  varint(out, #dr)
+  for _, d in ipairs(dr) do varint(out, (d.id or 0) * 2 + (d.cast and 1 or 0)) end
+  return out
+end
+
+-- The code for a saved run: a list of one or two strings.
+function Codes.Test(run)
+  if type(run) ~= "table" or not run.kpis or not run.timeline then
+    return nil, "This run was saved by an older TotA Meter: run a new Build Tester test."
+  end
+  local body = Codes.Base64url(Codes.Zlib(Codes.TestPayload(run)))
+  local prefix = "TOTA1T:"
+  if #prefix + #body <= Codes.MAX_LENGTH and #prefix + #body <= Codes.MAX_PART then return { prefix .. body } end
+  local id = Codes.Base64url({ adler(body) % 256, floor(adler(body) / 256) % 256, floor(adler(body) / 65536) % 256 })
+  local head = #prefix + 4 + 1 + #id + 1
+  local room = Codes.MAX_PART - head
+  local n = math.ceil(#body / room)
+  if n > 2 then return nil, "This run is too long for two codes (" .. #body .. " characters). Please tell Tools of the Avatar." end
+  local parts = {}
+  for i = 1, n do
+    parts[i] = prefix .. i .. "/" .. n .. "." .. id .. "." .. body:sub((i - 1) * room + 1, i * room)
+  end
+  return parts
+end

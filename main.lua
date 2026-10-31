@@ -124,8 +124,56 @@ local function saveRun(s)
   local kpis = nil
   local ok, out = pcall(M.Kpi.Compute, s.rec, s.testLength, s.layouts, s.altDeck)
   if ok then s.kpis = out; kpis = M.Kpi.Saved(out) else M.ReportError("Build Tester KPIs", out) end
+  local okT, extra = pcall(M.RunExtras, s)
+  if not okT then M.ReportError("Build Tester save", extra); extra = {} end
   M.RememberTest({ when = tostring(ShroudServerTime or ""), stopped = s.stopped, stats = s.snap, snapshots = s.snaps, kpis = kpis,
-    decks = s.layoutNames })
+    decks = s.layoutNames, timeline = extra.timeline, skills = extra.skills, deckRunes = extra.deckRunes, deckCodes = extra.deckCodes,
+    altDeck = s.altDeck, maxFocus = extra.maxFocus, dropped = s.dropped })
+end
+
+-- What the Build Tester code (0.8.0) needs beyond the KPIs, kept with the run:
+-- 60 slices of 5 s (damage, casts, focus spent / regained, focus level in
+-- thousandths of the maximum, on the Alt deck), the skills of the whole run
+-- (top 8, the rest summed), the deck's runes and whether each was cast, and
+-- the share codes of the decks tested.
+M.RUN_SKILLS = 8
+function M.RunExtras(s)
+  local rec, out = s.rec, s.kpis or {}
+  local timeline = {}
+  local lastFocus = nil
+  for j = 0, math.floor(rec.n / 5) - 1 do
+    local sl = { d = 0, c = 0, sp = 0, g = 0, alt = 0 }
+    for i = j * 5, j * 5 + 4 do
+      sl.d = sl.d + (rec.dmg[i] or 0); sl.c = sl.c + (rec.casts[i] or 0)
+      sl.sp = sl.sp + (rec.spent[i] or 0); sl.g = sl.g + (rec.gained[i] or 0); sl.alt = sl.alt + (rec.altSecs[i] or 0)
+      if rec.focus[i] then lastFocus = rec.focus[i] end
+    end
+    sl.f = (lastFocus and rec.maxFocus > 0) and math.floor(lastFocus / rec.maxFocus * 1000 + 0.5) or nil
+    sl.alt = sl.alt >= 2.5
+    timeline[j + 1] = sl
+  end
+  local skills = {}
+  local list = (out.c5 and out.c5.skills) or {}
+  local other = nil
+  for i, k in ipairs(list) do
+    local kind = (k.owner == "Pet") and 2 or (k.special and 1 or 0)
+    local row = { kind = kind, id = k.runeId or 0, name = k.name, damage = k.damage, hitSum = k.hitSum, hitN = k.hitN, critSum = k.critSum,
+      critN = k.critN, uses = k.uses, focus = k.focus, focusCasts = k.focusCasts }
+    if i <= M.RUN_SKILLS then skills[#skills + 1] = row
+    else
+      other = other or { kind = 3, id = 0, name = "Other", damage = 0, hitSum = 0, hitN = 0, critSum = 0, critN = 0, uses = 0, focus = 0, focusCasts = 0 }
+      for _, f in ipairs({ "damage", "hitSum", "hitN", "critSum", "critN", "uses", "focus", "focusCasts" }) do other[f] = other[f] + (row[f] or 0) end
+    end
+  end
+  if other then skills[#skills + 1] = other end
+  local codes = {}
+  if M.Codes and M.Codes.HasDeckApi() then
+    for _, d in ipairs(s.layouts or {}) do
+      local ok, c = pcall(ShroudGetDeckCode, d.name)
+      if ok and type(c) == "string" then codes[#codes + 1] = { name = d.name, code = c, alt = (d.name == s.altDeck) } end
+    end
+  end
+  return { timeline = timeline, skills = skills, deckRunes = (out.c5 and out.c5.deckRunes) or {}, deckCodes = codes, maxFocus = rec.maxFocus }
 end
 
 -- The decks of a run, read once at its first hit: the equipped deck and the

@@ -42,6 +42,7 @@ function Kpi.Skills(rec, span)
         by[key] = t
         list[#list + 1] = t
       end
+      if k.special then t.special = true end
       for _, f in ipairs({ "damage", "hitSum", "hitN", "critSum", "critN", "glancing", "ultraslay", "uses", "focus", "focusCasts" }) do
         t[f] = t[f] + (k[f] or 0)
       end
@@ -174,6 +175,9 @@ function Kpi.Span(rec, span, elapsed, ctx)
     table.sort(unused)
     r.deckUse = used / deck.count
     r.unused = unused
+    r.deckRunes = {}
+    for id in pairs(deck.all) do r.deckRunes[#r.deckRunes + 1] = { id = id, cast = cast[id] == true } end
+    table.sort(r.deckRunes, function(x, y) return x.id < y.id end)
     local lockedDmg, bothDmg = 0, 0
     for _, k in ipairs(skills) do
       if k.owner == "You" and k.runeId then
@@ -265,7 +269,7 @@ function Kpi.Compute(rec, elapsed, layouts, altDeck)
   -- Focus Runway: at the 3-5 pace, from the focus at 5:00
   local c5 = out.c5
   if not c5.live and c5.focusAt and w3.focusBalance then
-    c5.runway = (w3.focusBalance < 0) and (c5.focusAt / -w3.focusBalance) or math.huge
+    c5.runway = (w3.focusBalance < 0) and (max(0, c5.focusAt) / -w3.focusBalance) or math.huge
     w3.runway = c5.runway
   end
   return out

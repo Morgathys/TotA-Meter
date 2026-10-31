@@ -760,6 +760,7 @@ local function refreshExportChoices()
   pickDecks(false)
   setStatus(P.export.fileStatus, true, "")
   makeCodes()
+  if View.RefreshTestRuns then View.RefreshTestRuns() end
 end
 
 local function doExport()
@@ -789,6 +790,71 @@ local function codeBox(spec)
     box.field, box.note } }
 end
 
+-- Build Tester code (0.8.0): a saved run for Metrics & KPIs on the site, in
+-- one or two parts (a text box holds 1,024 characters).
+View.NO_RUN = "(no Build Tester run yet)"
+
+local function runLabel(i, r)
+  local c5 = r.kpis and r.kpis.c5 or {}
+  return i .. ". " .. tostring(r.when or "?") .. "  ·  " .. (c5.dps and (M.Num(c5.dps) .. " DPS") or "older run, no KPIs")
+end
+
+local function makeTestCode()
+  local e = P.export
+  local tests = M.tests or {}
+  local idx = e.run:GetIndex()
+  local run = tests[idx]
+  local parts, why = nil, "Run a Build Tester test first (5:00 on the Training Dummy)."
+  if run then parts, why = M.Codes.Test(run) end
+  for i, box in ipairs(e.testBoxes) do
+    local code = parts and parts[i] or ""
+    box.value = code
+    box.field:SetText(code)
+    box.wrap:SetVisible(i == 1 or (parts ~= nil and parts[i] ~= nil))
+    box.title:SetText((parts and #parts > 1) and ("Build Tester " .. i .. "/" .. #parts) or "Build Tester")
+  end
+  e.testNote:SetText(parts and ((#parts > 1) and "Two parts: paste both into the same box on the site, one after the other." or (#parts[1] .. " characters")) or why)
+  e.testNote:RemoveClass(parts and "bad" or "dim")
+  e.testNote:AddClass(parts and "dim" or "bad")
+end
+
+local function refreshTestRuns()
+  local e = P.export
+  if not e.run then return end
+  local tests = M.tests or {}
+  local choices = {}
+  for i, r in ipairs(tests) do choices[i] = runLabel(i, r) end
+  if #choices == 0 then choices = { View.NO_RUN } end
+  e.run:SetChoices(choices)
+  e.run:SetValue(choices[1])
+  makeTestCode()
+end
+View.RefreshTestRuns = refreshTestRuns
+
+local function buildTestBox()
+  local e = P.export
+  e.run = UI.Dropdown{ choices = { View.NO_RUN }, value = View.NO_RUN, onChange = function() makeTestCode() end }
+  e.testBoxes = {}
+  local kids = {
+    label("Build Tester", "bright", { fontSize = 13 }),
+    label("A saved run for Metrics & KPIs on your build's Deck Builder page (Import a test). The last 10 runs are kept.", "dim",
+      { fontSize = 11, whiteSpace = "wrap", marginTop = 2 }),
+    UI.Row{ style = { alignItems = "center", marginTop = 8 }, children = { label("Run", "dim", { fontSize = 12, marginRight = 8 }), e.run } },
+  }
+  for i = 1, 2 do
+    local box = { value = "" }
+    box.field = UI.TextField{ text = "", maxLength = M.Codes.MAX_LENGTH, placeholder = "Run a Build Tester test first",
+      style = { width = "100%" }, onChange = function(el, v) if v ~= box.value then el:SetText(box.value) end end }
+    box.title = label("Build Tester", "dim", { fontSize = 11 })
+    box.wrap = UI.Column{ style = { marginTop = 8 }, children = { box.title, box.field } }
+    e.testBoxes[i] = box
+    kids[#kids + 1] = box.wrap
+  end
+  e.testNote = label("", "dim", { fontSize = 11, marginTop = 2, whiteSpace = "wrap" })
+  kids[#kids + 1] = e.testNote
+  return UI.Column{ class = "inset", style = { padding = 12, marginTop = 10 }, children = kids }
+end
+
 local function buildExport()
   local e = P.export
   e.codes = {}
@@ -816,6 +882,7 @@ local function buildExport()
       boxes[1], boxes[2], boxes[3],
       e.status,
     } },
+    buildTestBox(),
     UI.Column{ class = "inset", style = { padding = 12, marginTop = 10 }, children = {
       label("Or save a file", "dim", { fontSize = 12 }),
       UI.Row{ style = { alignItems = "center", marginTop = 6 }, children = { e.skills, label("", "dim", { flexGrow = 1 }),

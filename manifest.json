@@ -2,7 +2,7 @@
   "manifest_version": 1,
   "slug": "tota-meter",
   "name": "TotA Meter",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "files": [
     "core.lua",
     "combos.lua",

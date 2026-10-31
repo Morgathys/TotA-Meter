@@ -97,6 +97,7 @@ local function winSkill(s, t, r)
       glancing = 0, ultraslay = 0, uses = 0, focus = 0, focusCasts = 0 }
     w[r.key] = k
   end
+  if r.special then k.special = true end
   return k
 end
 
@@ -270,6 +271,7 @@ function Model.Add(s, e, ctx)
     local into = (ctx.comboByName and ctx.comboByName[r.name]) and s.combos or s.specials
     special = into[r.name] or { uses = 0, damage = 0, runeId = r.runeId }
     into[r.name] = special
+    r.special = true
   end
 
   -- A use: the skill's first line at a given time that is not a tick (an area
