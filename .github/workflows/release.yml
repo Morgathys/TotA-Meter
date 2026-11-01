@@ -1,0 +1,56 @@
+name: Release
+
+# Publishes a GitHub release when the add-on's version changes on main
+# (owner, 2026-11-01). Bump "version" in tota-meter/manifest.json and merge:
+# this builds tota-meter-<version>.zip (with the tota-meter/ folder the game
+# needs), tags v<version> and publishes the release with the zip attached.
+# Nothing happens when that version already has a release.
+on:
+  push:
+    branches: [main]
+    paths: ['tota-meter/manifest.json']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read the version
+        id: v
+        run: |
+          version=$(jq -r .version tota-meter/manifest.json)
+          if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then echo "Bad version: $version"; exit 1; fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          if gh release view "v$version" >/dev/null 2>&1; then
+            echo "Release v$version already exists, nothing to do."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Build the zip and publish
+        if: steps.v.outputs.skip != 'true'
+        run: |
+          v=${{ steps.v.outputs.version }}
+          git archive --format=zip --prefix=tota-meter/ -o "tota-meter-$v.zip" HEAD:tota-meter
+          unzip -l "tota-meter-$v.zip" | grep -q 'tota-meter/manifest.json'
+          {
+            jq -r .description tota-meter/manifest.json
+            echo
+            echo "**Install:** download \`tota-meter-$v.zip\` below and unzip it into your Lua folder (type \`/lua path\` in game to find it). You should have \`<Lua folder>/tota-meter/manifest.json\`. Type \`/lua reload\`, switch **TotA Meter** ON in the Add-on Manager, then open it with the HUD's **Menu** button or \`/tota\`."
+            echo
+            echo "Requires the game's Lua API $(jq -r .min_api_version tota-meter/manifest.json) or later (the deck codes need API 56)."
+          } > notes.md
+          gh release create "v$v" "tota-meter-$v.zip" --target "$GITHUB_SHA" --title "TotA Meter $v" --notes-file notes.md
+        env:
+          GH_TOKEN: ${{ github.token }}
