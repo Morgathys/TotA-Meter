@@ -2,7 +2,7 @@
 
 DPS meter and Build Tester for **Tools of the Avatar**. It counts only **your** damage and **your pet's**; other players and party members are ignored.
 
-Version 0.8.3 · slug `tota-meter` · minimum Lua API 25.
+Version 1.0.0 · slug `tota-meter` · minimum Lua API 25.
 
 ## Install
 1. Create a folder named `tota-meter` in your Lua folder (type `/lua path` in game to find it) and copy
@@ -32,7 +32,7 @@ The **Performance** table shows 29 KPIs, each with its icon (hover a KPI for wha
 Under it, the skills table for any span (average hit and crit, crit power and rate, uses, focus per cast, damage per focus), the runes of your deck you never cast, and the details (damage by type, combos, decks, your stats at the start). The formulas are in `build-tester-kpis.md` of the Tools of the Avatar project. Deck Use and Locked Share need the game's Lua API 56. The Alt deck is the one picked in the Export tab, else the one you were not on when you pressed Start.
 
 ## Export
-The Export tab makes three codes for **Import** on Tools of the Avatar (open your build, then its ⋯ menu → Import). The game has no copy button for add-ons, so copy each code from its box: click in it, **Ctrl+A**, then **Ctrl+C**, and paste it in the box of the same name on the site.
+The Export tab has one space each for the deck choice, the Decks code, the XP codes, the Build Tester code and the file. It makes three codes for **Import** on Tools of the Avatar (open your build, then its ⋯ menu → Import). The game has no copy button for add-ons, so copy each code from its box: click in it, **Ctrl+A**, then **Ctrl+C**, and paste it in the box of the same name on the site.
 
 | Code | What it replaces on the site | Size |
 |---|---|---|

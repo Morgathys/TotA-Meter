@@ -894,7 +894,7 @@ local function buildTestBox()
   e.run = UI.Dropdown{ choices = { View.NO_RUN }, value = View.NO_RUN, onChange = function() makeTestCode() end }
   e.testBoxes = {}
   local kids = {
-    label("Build Tester", "bright", { fontSize = 13 }),
+    label("Build Tester", "bright", { fontSize = 14 }),
     label("A saved run for Metrics & KPIs on your build's Deck Builder page (Import a test). The last 10 runs are kept.", "dim",
       { fontSize = 11, whiteSpace = "wrap", marginTop = 2 }),
     UI.Row{ style = { alignItems = "center", marginTop = 8 }, children = { label("Run", "dim", { fontSize = 12, marginRight = 8 }), e.run } },
@@ -913,6 +913,13 @@ local function buildTestBox()
   return UI.Column{ class = "inset", style = { padding = 12, marginTop = 10 }, children = kids }
 end
 
+-- A framed space with a title and a one-line hint.
+local function section(title, hint, kids)
+  local children = { label(title, "bright", { fontSize = 14 }), label(hint, "dim", { fontSize = 11, whiteSpace = "wrap", marginTop = 2 }) }
+  for _, k in ipairs(kids) do children[#children + 1] = k end
+  return UI.Column{ class = "inset", style = { padding = 12, marginTop = 10 }, children = children }
+end
+
 local function buildExport()
   local e = P.export
   e.codes = {}
@@ -929,17 +936,19 @@ local function buildExport()
     label("Copy each code (click in its box, Ctrl+A, then Ctrl+C) and paste it in the same box of Import on your build (its ... menu). " ..
       "Each code replaces only its own part of the build. No character name is included.", "dim",
       { whiteSpace = "wrap", fontSize = 12, marginTop = 2 }),
-    UI.Column{ class = "inset", style = { padding = 12, marginTop = 10 }, children = {
-      UI.Row{ children = {
+    -- One space per part (owner, 2026-11-01): deck choice, Decks code, XP
+    -- codes, then the Build Tester code and the file.
+    section("Decks", "Pick the decks to export, then Make codes (it makes the Decks and XP codes).", {
+      UI.Row{ style = { marginTop = 8 }, children = {
         UI.Column{ style = { flexGrow = 1, marginRight = 8 }, children = { field("Combat deck", e.combat) } },
         UI.Column{ style = { flexGrow = 1 }, children = { field("Alt deck (optional)", e.alt) } } } },
       e.warn,
       UI.Row{ style = { marginTop = 12 }, children = {
         button("Make codes", makeCodes), button("Use equipped and alternate decks", function() pickDecks(true); makeCodes() end, { marginLeft = 6 }),
         button("Refresh decks", refreshExportChoices, { marginLeft = 6 }) } },
-      boxes[1], boxes[2], boxes[3],
-      e.status,
-    } },
+      e.status }),
+    section("Deck code", "Paste it in the Decks box of Import on your build.", { boxes[1] }),
+    section("XP codes", "Paste each in its own box of Import: Adventurer XP and Producer XP.", { boxes[2], boxes[3] }),
     buildTestBox(),
     UI.Column{ class = "inset", style = { padding = 12, marginTop = 10 }, children = {
       label("Or save a file", "dim", { fontSize = 12 }),
