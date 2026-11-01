@@ -2,7 +2,7 @@
 
 DPS meter and Build Tester for **Tools of the Avatar**. It counts only **your** damage and **your pet's**; other players and party members are ignored.
 
-Version 0.8.2 · slug `tota-meter` · minimum Lua API 25.
+Version 0.8.3 · slug `tota-meter` · minimum Lua API 25.
 
 ## Install
 1. Create a folder named `tota-meter` in your Lua folder (type `/lua path` in game to find it) and copy
@@ -11,7 +11,7 @@ Version 0.8.2 · slug `tota-meter` · minimum Lua API 25.
    and the icons load from `tota-meter/`.
 2. Type `/lua reload`, then switch **TotA Meter** ON in the Add-on Manager.
 
-Open it with the **Menu** button on the HUD (or `/tota`). The window has four tabs: Meter, Build Tester, Export and Setup.
+Open it with the **Menu** button on the HUD (or `/tota`). The window has four tabs: Meter, Build Tester, Export and Setup. The Meter and Build Tester metrics are always shown, with "-" until the first hit.
 
 ## Meter
 Cumulative until you press **Reset meter**: every fight adds up, and DPS is measured over combat time (the time between fights is not counted). DPS (and the last 5 seconds), peak DPS (best 5 seconds), total damage, combat time and number of fights, critical rate, casts per minute, pet share, missed attacks; per skill and pet attack: damage and share, highest hit, uses and uses per minute, critical, glancing and ultraslay rates, and **focus per cast** (estimate); damage by type, combos, Combat / Alt deck split, your attack speed and crit at the start, and any potion or food active.

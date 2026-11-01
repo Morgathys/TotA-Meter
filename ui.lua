@@ -485,10 +485,17 @@ local function refreshMeter(now)
   local e = P.meter
   local s = M.fight
   local started = s ~= nil and s.start ~= nil
+  -- The metrics are always shown (owner, 2026-11-01): "-" until the first hit.
   e.empty:SetVisible(not started)
-  e.body:SetVisible(started)
+  e.body:SetVisible(true)
   e.state:SetVisible(started)
-  if not started then return end
+  if not started then
+    for _, c in ipairs(e.cards) do c.value:SetText("-"); c.note:SetText(" ") end
+    fillGrid(e.rows, {}, skillCells, M.SkillIcon)
+    e.more:SetText(""); e.more:SetVisible(false)
+    for _, l in ipairs(e.details) do l:SetText("-") end
+    return
+  end
   local live = Model.InCombat(s)
   e.state:SetText(live and "In combat" or "Out of combat")
   e.state:RemoveClass(live and "dim" or "good")
@@ -613,6 +620,7 @@ local function skillSpanCells(k, total)
     k.focusPerCast and M.Dec(k.focusPerCast) or "-", k.damagePerFocus and M.Dec(k.damagePerFocus) or "-" }
 end
 
+local refreshTesterHistory
 local function refreshTester(now)
   local e = P.tester
   local t = M.tester
@@ -622,9 +630,25 @@ local function refreshTester(now)
   e.reset:SetEnabled(t ~= nil)
   e.bar:SetValue((t and t.start) and math.min(1, Model.Duration(t, now) / t.testLength) or 0)
   local started = t ~= nil and t.start ~= nil
-  e.body:SetVisible(started)
-  if not started then return end
+  -- The KPI table and the rest are always shown (owner, 2026-11-01): "-"
+  -- until the run's first hit.
+  e.body:SetVisible(true)
   growKpiRows(e)
+  if not started then
+    for i, c in ipairs(KPI_COLS) do e.kpiHead[i]:SetText(c[1]) end
+    for _, item in ipairs(e.kpiList) do
+      if item.values then for i = 1, #KPI_COLS do item.values[i]:SetText("-") end end
+    end
+    for i, b in ipairs(e.pick) do
+      b:SetEnabled(false)
+      b:SetStyle({ borderColor = (KPI_COLS[i][2] == "c5") and GOLD or CLEAR })
+    end
+    fillGrid(e.rows, {}, function() return {} end, M.SkillIcon)
+    e.unused:SetText(""); e.unused:SetVisible(false)
+    for _, l in ipairs(e.details) do l:SetText("-") end
+    refreshTesterHistory(e)
+    return
+  end
   local elapsed = t.ended and t.testLength or Model.Duration(t, now)
   -- while running, the KPIs are recomputed once a second (not every refresh)
   local out = t.kpis
@@ -675,6 +699,10 @@ local function refreshTester(now)
     local d = detailTexts(sum, t)
     for i, l in ipairs(e.details) do l:SetText(d[i]) end
   end
+  refreshTesterHistory(e)
+end
+
+refreshTesterHistory = function(e)
   local tests = M.tests or {}
   e.noHistory:SetVisible(#tests == 0)
   for i, l in ipairs(e.history) do
