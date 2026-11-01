@@ -17,6 +17,6 @@
   ],
   "icon": "icon.png",
   "min_api_version": 25,
-  "description": "DPS meter and Build Tester for you and your pet. The HUD shows your DPS, peak burst, crits, skill damage share, the XP you gained and the last artifact, Crown of the Obsidians or blueprint you looted. The Build Tester runs 5 minutes on the Training Dummy and scores your build on 31 KPIs (damage, hit quality, rhythm, stability, focus). Export codes bring your decks, skill XP and test results to Tools of the Avatar.",
+  "description": "TotA Meter is a DPS meter, with a small HUD that also tracks the XP you gain and the loot you find. Its Build Tester scores your build over a 5-minute run, from burst damage to focus consumption. Export codes bring your decks, skill XP and test results to Tools of the Avatar website.",
   "author": "Tools of the Avatar"
 }
