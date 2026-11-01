@@ -5,7 +5,7 @@
 TotaMeter = TotaMeter or {}
 local M = TotaMeter
 
-M.VERSION = "0.8.0"
+M.VERSION = "0.8.1"
 
 -- Slash commands (owner, 2026-10-30: /tota instead of /totameter), listed in
 -- the Setup tab and in the game's /help.
@@ -167,9 +167,11 @@ M.HUD_ITEMS = {
   { key = "share", label = "Skill damage share" },
   { key = "max", label = "Skill max hit" },
   { key = "perMinute", label = "Skill uses per minute" },
+  { key = "advXp", label = "Adventurer XP since reset" },
+  { key = "prodXp", label = "Producer XP since reset" },
   { key = "loot", label = "Last artifact / crown / blueprint" },
 }
-M.HUD_DEFAULT = { dps = true, peak = true, total = true, crit = true, share = true, max = false, perMinute = false, loot = true }
+M.HUD_DEFAULT = { dps = true, peak = true, total = true, crit = true, share = true, max = false, perMinute = false, advXp = true, prodXp = true, loot = true }
 M.HUD_SKILL_CHOICES = { "3", "5", "8" }
 
 M.settings = { hud = true, hudShow = {}, hudSkills = 5, combatDeck = nil, altDeck = nil, includeSkills = true }
@@ -193,6 +195,7 @@ function M.LoadSettings()
   local h = ShroudGetSavedVar("tests", "character")
   M.tests = type(h) == "table" and h or {}
   M.LoadLoot()
+  M.LoadXp()
 end
 
 function M.SaveSettings()
@@ -218,30 +221,58 @@ M.LOOT_TOOLTIP = 20        -- items listed when hovering the HUD's loot line
 M.ARTIFACT_WORDS = { common = true, uncommon = true, rare = true, legendary = true, epic = true }
 M.LOOT_LABEL = { artifact = "Artifact", crown = "Crown", blueprint = "Blueprint" }
 -- Also artifacts: any name containing one of these (owner, 2026-10-28; any case).
+-- Shown orange like the rarity artifacts (owner, 2026-11-01):
 M.ARTIFACT_PHRASES = {
-  "Short Glowing Blue Cylinder", "Supply Bundle", "Book of Learning", "Ring of Luck", "Cowbell of Reaping",
-  "Embry's Harp", "Fleet Flute", "Flute of Defiance", "Glowing Belt Buckle", "Harp of Invigoration",
-  "Lute of Discordant Notes", "Strip of Thick Troll Skin", "Short Glowing Cylinder", "Lute of Inspiration",
-  "Mossy Green Handle", "Savage Handle", "Torc'Dawl's", "Lich Skull", "Troll Rib Cage", "Troll Pelvic Bones",
-  "Unicorn Blood", "Unicorn Hair", "Shadow Essence",
+  "Short Glowing Blue Cylinder", "Short Glowing Cylinder", "Ring of Luck", "Cowbell of Reaping", "Embry's Harp",
+  "Fleet Flute", "Flute of Defiance", "Glowing Belt Buckle", "Harp of Invigoration", "Lute of Discordant Notes",
+  "Lute of Inspiration",
 }
-local artifactPhrases = {}
-for i, p in ipairs(M.ARTIFACT_PHRASES) do artifactPhrases[i] = string.lower(p) end
+-- Logged too, in the normal text colour:
+M.NAMED_PHRASES = {
+  "Supply Bundle", "Book of Learning", "Strip of Thick Troll Skin", "Mossy Green Handle", "Savage Handle",
+  "Torc'Dawl's", "Lich Skull", "Troll Rib Cage", "Troll Pelvic Bones", "Unicorn Blood", "Unicorn Hair",
+  "Shadow Essence",
+}
+-- HUD colours of the last item looted (owner, 2026-11-01): orange artifacts
+-- (as the game's chat shows them), yellow Crowns (the icon's colour).
+M.LOOT_ORANGE = "#e8893a"
+M.LOOT_YELLOW = "#f2c94c"
+M.LOOT_TEXT = "@text-bright"
+local function lowered(list) local out = {} for i, p in ipairs(list) do out[i] = string.lower(p) end return out end
+local artifactPhrases, namedPhrases = lowered(M.ARTIFACT_PHRASES), lowered(M.NAMED_PHRASES)
 
--- "artifact", "crown", "blueprint" or nil.
+-- An item name for matching: lower case, typographic apostrophes (U+2019) as plain ones.
+function M.LootKey(name)
+  return string.lower((string.gsub(name, "\226\128\153", "'")))
+end
+
+local function hasPhrase(lower, list)
+  for _, p in ipairs(list) do
+    if string.find(lower, p, 1, true) then return true end
+  end
+  return false
+end
+
+-- "artifact", "crown", "blueprint" or nil, and whether it shows orange.
 function M.LootKind(name)
   if type(name) ~= "string" or name == "" then return nil end
-  -- typographic apostrophes (U+2019) count as plain ones
-  local lower = string.lower((string.gsub(name, "\226\128\153", "'")))
-  if string.find(lower, "^%s*blueprint") then return "blueprint" end
-  if string.find(lower, "crowns? of the obsidians?") then return "crown" end
+  local lower = M.LootKey(name)
+  if string.find(lower, "^%s*blueprint") then return "blueprint", false end
+  if string.find(lower, "crowns? of the obsidians?") then return "crown", false end
   for word in string.gmatch(lower, "%a+") do
-    if M.ARTIFACT_WORDS[word] then return "artifact" end
+    if M.ARTIFACT_WORDS[word] then return "artifact", true end
   end
-  for _, p in ipairs(artifactPhrases) do
-    if string.find(lower, p, 1, true) then return "artifact" end
-  end
+  if hasPhrase(lower, artifactPhrases) then return "artifact", true end
+  if hasPhrase(lower, namedPhrases) then return "artifact", false end
   return nil
+end
+
+-- The HUD colour of a logged item.
+function M.LootColour(it)
+  if not it then return M.LOOT_TEXT end
+  if it.kind == "crown" then return M.LOOT_YELLOW end
+  local _, orange = M.LootKind(it.name)
+  return orange and M.LOOT_ORANGE or M.LOOT_TEXT
 end
 
 local function emptyLoot() return { items = {}, counts = { artifact = 0, crown = 0, blueprint = 0 } } end
@@ -298,6 +329,102 @@ function M.AddLoot(items)
   for i = #M.loot.items, M.LOOT_KEEP + 1, -1 do M.loot.items[i] = nil end
   if n > 0 then M.SaveLoot() end
   return n
+end
+
+-- Loot only (owner, 2026-11-01): ShroudOnItemsGained also fires for items
+-- taken out of a chest, the bank or a crafting station. An item counts only
+-- when the chat also says "You looted an item (<name>)." within LOOT_MATCH
+-- seconds of it arriving in the bags (either one may come first).
+M.LOOT_MATCH = 5
+M.lootLines = {}     -- key -> time the chat named it (items of note only)
+M.lootPending = {}   -- items of note waiting for their chat line: { item, key, at }
+M.lootLinesSeen = 0  -- for /tota debug
+
+-- The item named by a "You looted ..." chat line, or nil.
+function M.LootLineName(message)
+  if type(message) ~= "string" or not string.find(message, "looted", 1, true) then return nil end
+  local text = string.gsub(message, "<[^>]->", "")
+  local name = string.match(text, "[Yy]ou looted[^%(]*%((.+)%)")
+  if not name then return nil end
+  name = string.gsub(string.gsub(name, "^%s+", ""), "%s+$", "")
+  return name ~= "" and name or nil
+end
+
+-- A chat line; returns how many items were logged.
+function M.OnLootLine(message, now)
+  local name = M.LootLineName(message)
+  if not name then return 0 end
+  M.lootLinesSeen = M.lootLinesSeen + 1
+  if not M.LootKind(name) then return 0 end
+  local key = M.LootKey(name)
+  for i, p in ipairs(M.lootPending) do
+    if p.key == key then
+      table.remove(M.lootPending, i)
+      return M.AddLoot({ p.item })
+    end
+  end
+  M.lootLines[key] = now
+  return 0
+end
+
+-- Items that arrived in the bags; returns how many were logged now.
+function M.OnItemsGained(items, now)
+  local confirmed = {}
+  for _, it in ipairs(items or {}) do
+    if type(it) == "table" and M.LootKind(it.name) then
+      local key = M.LootKey(it.name)
+      local t = M.lootLines[key]
+      if t and now - t <= M.LOOT_MATCH then
+        M.lootLines[key] = nil
+        confirmed[#confirmed + 1] = it
+      else
+        M.lootPending[#M.lootPending + 1] = { item = it, key = key, at = now }
+      end
+    end
+  end
+  return #confirmed > 0 and M.AddLoot(confirmed) or 0
+end
+
+-- Drops what found no match in time (an item from a chest, or a line about
+-- an item that never reached the bags).
+function M.ExpireLoot(now)
+  for i = #M.lootPending, 1, -1 do
+    if now - M.lootPending[i].at > M.LOOT_MATCH or now < M.lootPending[i].at then table.remove(M.lootPending, i) end
+  end
+  for k, t in pairs(M.lootLines) do
+    if now - t > M.LOOT_MATCH or now < t then M.lootLines[k] = nil end
+  end
+end
+
+-- ---------------------------------------------------------------------------
+-- Experience gained since the last reset (owner, 2026-11-01): Adventurer and
+-- Producer, from ShroudOnExperienceGain. A character saved variable (written
+-- at logout / reload), cleared with the meter like the loot list.
+-- ---------------------------------------------------------------------------
+
+M.xp = { adventurer = 0, producer = 0 }
+
+function M.LoadXp()
+  local saved = ShroudGetSavedVar("xpGained", "character")
+  M.xp = { adventurer = 0, producer = 0 }
+  if type(saved) ~= "table" then return end
+  for k in pairs(M.xp) do
+    if type(saved[k]) == "number" and saved[k] >= 0 and saved[k] < 1e15 then M.xp[k] = saved[k] end
+  end
+end
+
+function M.AddXp(kind, amount)
+  if type(amount) ~= "number" or amount <= 0 or amount ~= amount then return false end
+  local k = kind == "Adventurer" and "adventurer" or kind == "Producer" and "producer" or nil
+  if not k then return false end
+  M.xp[k] = M.xp[k] + amount
+  ShroudSetSavedVar("xpGained", M.xp, "character")
+  return true
+end
+
+function M.ResetXp()
+  M.xp = { adventurer = 0, producer = 0 }
+  ShroudSetSavedVar("xpGained", M.xp, "character")
 end
 
 -- The game's tooltip text: the last LOOT_TOOLTIP items, newest first (tooltips stop at 512 characters).

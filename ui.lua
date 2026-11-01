@@ -189,7 +189,8 @@ local H = {}               -- HUD elements
 local hudLayoutKey = nil
 local HUD_X, HUD_Y = 40, 300
 local HUD_SKILL_POOL = 8
-local HUD_STATS = { { "dps", "DPS", "dps" }, { "peak", "Peak", "peak" }, { "total", "Total", "total" }, { "crit", "Critical", "crit" } }
+local HUD_STATS = { { "dps", "DPS", "dps" }, { "peak", "Peak", "peak" }, { "total", "Total", "total" }, { "crit", "Critical", "crit" },
+  { "advXp", "Adv XP", "total" }, { "prodXp", "Prod XP", "total" } }
 local HUD_COLS = { { "share", "Share" }, { "max", "Max" }, { "perMinute", "/min" } }
 
 -- The session the HUD shows: a Build Tester run in progress, else the fight.
@@ -333,7 +334,10 @@ local function refreshHud(now)
   local started = s and s.start
   for _, st in ipairs(H.stats) do
     local v = "-"
-    if started then
+    -- experience since the last reset: shown with or without a fight
+    if st.key == "advXp" then v = M.Num(M.xp.adventurer)
+    elseif st.key == "prodXp" then v = M.Num(M.xp.producer)
+    elseif started then
       if st.key == "dps" then
         local live = (kind == "tester" and not s.ended) or (kind == "fight" and Model.InCombat(s))
         local recent = live and Model.Recent(s, now) or nil
@@ -369,10 +373,13 @@ local function refreshHud(now)
     local last = M.loot.items[1]
     if last then
       L.name:SetText(last.name .. (last.quantity > 1 and ("  x" .. last.quantity) or ""))
+      local colour = M.LootColour(last)
+      if colour ~= L.colour then L.name:SetStyle{ color = colour }; L.colour = colour end
       local spec = last.icon and { tex = last.icon, uv = { 0, 0, 1, 1 }, key = "i:" .. last.icon } or M.MetricIcon("total")
       if not setIcon(L, L.img, spec, M.MetricIcon("total")) then last.icon = nil end
     else
       L.name:SetText("No artifact yet")
+      if L.colour then L.name:SetStyle{ color = "@text-dim" }; L.colour = nil end
       setIcon(L, L.img, M.MetricIcon("total"))
     end
     if (last ~= nil) ~= L.lit then

@@ -253,6 +253,7 @@ end
 function M.ResetFight()
   M.fight = Model.New(nil)
   M.ResetLoot()
+  M.ResetXp()
   M.View.Tick(M.Now())
 end
 
@@ -314,6 +315,7 @@ local function onUpdate()
     Model.FocusSample(t, now, M.lastFocus, f, M.maxFocus, lastFrame and (now - lastFrame) or nil)
   end
   lastFrame = now
+  if next(M.lootPending) or next(M.lootLines) then M.ExpireLoot(now) end
   if type(f) == "number" and type(M.lastFocus) == "number" and f < M.lastFocus - 0.5 then
     local now = M.Now()
     Model.AddFocusDrop(M.fight, now, M.lastFocus - f)
@@ -324,10 +326,23 @@ end
 function ShroudOnUpdate() guard("frame update", onUpdate) end
 
 -- Loot of note: artifacts, Crowns of the Obsidians, blueprints (see core.lua).
+-- Only loot counts: the item must also be named by a "You looted" chat line.
 function ShroudOnItemsGained(items, dropped)
   guard("loot", function()
-    if type(items) == "table" and M.AddLoot(items) > 0 then M.View.Tick(M.Now()) end
+    if type(items) == "table" and M.OnItemsGained(items, M.Now()) > 0 then M.View.Tick(M.Now()) end
   end)
+end
+
+function ShroudOnConsoleInput(inputType, sourcePlayer, message)
+  if type(message) ~= "string" or not string.find(message, "looted", 1, true) then return end
+  guard("loot line", function()
+    if M.OnLootLine(message, M.Now()) > 0 then M.View.Tick(M.Now()) end
+  end)
+end
+
+-- Adventurer / Producer experience since the last reset.
+function ShroudOnExperienceGain(experienceType, amount)
+  guard("experience", function() M.AddXp(experienceType, amount) end)
 end
 
 function ShroudOnCombatModeChanged(inCombat) M.inCombat = inCombat == true end
@@ -380,6 +395,8 @@ function M.PrintDebug()
   M.Say(string.format("meter: %s · in combat %s (game says %s) · last line time %s · game time %.1f · player %s",
     f and (f.start and (M.Num(f.total) .. " damage") or "not started") or "missing", tostring(f and Model.InCombat(f)),
     tostring(M.inCombat), tostring(D.lastLineTime), M.Now(), tostring(M.playerName)))
+  M.Say(string.format("loot: \"You looted\" lines seen %d · items waiting for their line %d · logged %d · XP since reset: adventurer %s, producer %s",
+    M.lootLinesSeen, #M.lootPending, #M.loot.items, M.Num(M.xp.adventurer), M.Num(M.xp.producer)))
 end
 
 function M.PrintErrors(arg)

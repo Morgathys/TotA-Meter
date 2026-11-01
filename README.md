@@ -2,7 +2,7 @@
 
 DPS meter and Build Tester for **Tools of the Avatar**. It counts only **your** damage and **your pet's**; other players and party members are ignored.
 
-Version 0.8.0 · slug `tota-meter` · minimum Lua API 25.
+Version 0.8.1 · slug `tota-meter` · minimum Lua API 25.
 
 ## Install
 1. Create a folder named `tota-meter` in your Lua folder (type `/lua path` in game to find it) and copy
@@ -50,12 +50,16 @@ The Decks code needs the game's Lua API 56 or later. **Save tota_export.json** s
 Choose its lines (DPS, peak DPS, total damage, critical rate, skill damage share, skill max hit, skill uses per minute) and how many skills it lists. Move it by the grip at its top-left corner (shown while Lock Status Movement is off in the Interface options) or with the buttons on this tab.
 
 ## Loot
-The HUD's bottom line (as tall as the item's icon) shows the last item of note you got ("No artifact yet" until one drops); hover it for the last 20. The list is kept per character across reloads and relogs until **Reset meter** clears it. Items of note:
-- **artifacts**: a name with *common*, *uncommon*, *rare*, *legendary* or *epic*, or containing: Short Glowing Blue Cylinder, Supply Bundle, Book of Learning, Ring of Luck, Cowbell of Reaping, Embry's Harp, Fleet Flute, Flute of Defiance, Glowing Belt Buckle, Harp of Invigoration, Lute of Discordant Notes, Strip of Thick Troll Skin, Short Glowing Cylinder, Lute of Inspiration, Mossy Green Handle, Savage Handle, Torc'Dawl's, Lich Skull, Troll Rib Cage, Troll Pelvic Bones, Unicorn Blood, Unicorn Hair, Shadow Essence;
-- **Crown of the Obsidians**;
-- **blueprints** (a name starting with *Blueprint*).
+The HUD's bottom line (as tall as the item's icon) shows the last item of note you looted ("No artifact yet" until one drops), in its colour; hover it for the last 20. The list is kept per character across reloads and relogs until **Reset meter** clears it. Items of note:
+- **artifacts, orange**: a name with *common*, *uncommon*, *rare*, *legendary* or *epic* anywhere in it, or containing: Short Glowing Blue Cylinder, Short Glowing Cylinder, Ring of Luck, Cowbell of Reaping, Embry's Harp, Fleet Flute, Flute of Defiance, Glowing Belt Buckle, Harp of Invigoration, Lute of Discordant Notes, Lute of Inspiration;
+- **other items, normal colour**: Supply Bundle, Book of Learning, Strip of Thick Troll Skin, Mossy Green Handle, Savage Handle, Torc'Dawl's, Lich Skull, Troll Rib Cage, Troll Pelvic Bones, Unicorn Blood, Unicorn Hair, Shadow Essence;
+- **Crown of the Obsidians, yellow**;
+- **blueprints, normal colour** (a name starting with *Blueprint*).
 
-Items taken out of your bank or a chest count as gained too: the game reports them the same way.
+Only loot counts (0.8.1): an item is logged when it reaches your bags **and** the chat says "You looted an item (…)" for it within 5 seconds. Items taken out of your bank, a chest or a crafting station have no such line and are left out. The game's tooltips have no colours, so the hover list is plain text.
+
+## Experience
+The HUD's **Adv XP** and **Prod XP** lines add up the Adventurer and Producer experience you gained since the last **Reset meter** (kept across reloads and relogs). Switch them on or off in the Setup tab.
 
 ## Commands
 Type them in the chat box; the Setup tab lists them too.
