@@ -17,6 +17,6 @@
   ],
   "icon": "icon.png",
   "min_api_version": 25,
-  "description": "DPS meter and Build Tester for you and your pet: DPS and peak, damage per skill, max hit, uses per minute, crits, estimated focus per cast, combos, damage by type and Combat/Alt deck split, and a 5-minute Build Tester on the Training Dummy with 29 performance KPIs (burst, hit quality, rhythm, stability, focus) for 0-1, 1-3 and 3-5 minutes. Tracks artifacts, Crowns of the Obsidians and blueprints you loot. Makes three codes to paste in Import on Tools of the Avatar: your Combat and Alt decks with their exact slots, your adventurer skills and XP, your producer skills and XP.",
+  "description": "DPS meter and Build Tester for you and your pet. The HUD shows your DPS, peak burst, crits, skill damage share, the XP you gained and the last artifact, Crown of the Obsidians or blueprint you looted. The Build Tester runs 5 minutes on the Training Dummy and scores your build on 31 KPIs (damage, hit quality, rhythm, stability, focus). Export codes bring your decks, skill XP and test results to Tools of the Avatar.",
   "author": "Tools of the Avatar"
 }
