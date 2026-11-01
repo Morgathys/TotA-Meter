@@ -5,7 +5,7 @@
 TotaMeter = TotaMeter or {}
 local M = TotaMeter
 
-M.VERSION = "0.8.1"
+M.VERSION = "0.8.2"
 
 -- Slash commands (owner, 2026-10-30: /tota instead of /totameter), listed in
 -- the Setup tab and in the game's /help.
@@ -160,6 +160,8 @@ end
 
 -- What the HUD shows (owner, 2026-10-28): each line can be switched on or off.
 M.HUD_ITEMS = {
+  { key = "advXp", label = "Adventurer XP since reset (top line)" },
+  { key = "prodXp", label = "Producer XP since reset (top line)" },
   { key = "dps", label = "DPS" },
   { key = "peak", label = "Peak DPS (best 5 s)" },
   { key = "total", label = "Total damage" },
@@ -167,8 +169,6 @@ M.HUD_ITEMS = {
   { key = "share", label = "Skill damage share" },
   { key = "max", label = "Skill max hit" },
   { key = "perMinute", label = "Skill uses per minute" },
-  { key = "advXp", label = "Adventurer XP since reset" },
-  { key = "prodXp", label = "Producer XP since reset" },
   { key = "loot", label = "Last artifact / crown / blueprint" },
 }
 M.HUD_DEFAULT = { dps = true, peak = true, total = true, crit = true, share = true, max = false, perMinute = false, advXp = true, prodXp = true, loot = true }

@@ -2,7 +2,7 @@
 
 DPS meter and Build Tester for **Tools of the Avatar**. It counts only **your** damage and **your pet's**; other players and party members are ignored.
 
-Version 0.8.1 · slug `tota-meter` · minimum Lua API 25.
+Version 0.8.2 · slug `tota-meter` · minimum Lua API 25.
 
 ## Install
 1. Create a folder named `tota-meter` in your Lua folder (type `/lua path` in game to find it) and copy
@@ -59,7 +59,7 @@ The HUD's bottom line (as tall as the item's icon) shows the last item of note y
 Only loot counts (0.8.1): an item is logged when it reaches your bags **and** the chat says "You looted an item (…)" for it within 5 seconds. Items taken out of your bank, a chest or a crafting station have no such line and are left out. The game's tooltips have no colours, so the hover list is plain text.
 
 ## Experience
-The HUD's **Adv XP** and **Prod XP** lines add up the Adventurer and Producer experience you gained since the last **Reset meter** (kept across reloads and relogs). Switch them on or off in the Setup tab.
+The HUD's top line, under the title, shows **Adv XP** and **Prod XP** side by side: they add up the Adventurer and Producer experience you gained since the last **Reset meter** (kept across reloads and relogs). Switch them on or off in the Setup tab.
 
 ## Commands
 Type them in the chat box; the Setup tab lists them too.

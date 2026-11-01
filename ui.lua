@@ -189,8 +189,7 @@ local H = {}               -- HUD elements
 local hudLayoutKey = nil
 local HUD_X, HUD_Y = 40, 300
 local HUD_SKILL_POOL = 8
-local HUD_STATS = { { "dps", "DPS", "dps" }, { "peak", "Peak", "peak" }, { "total", "Total", "total" }, { "crit", "Critical", "crit" },
-  { "advXp", "Adv XP", "total" }, { "prodXp", "Prod XP", "total" } }
+local HUD_STATS = { { "dps", "DPS", "dps" }, { "peak", "Peak", "peak" }, { "total", "Total", "total" }, { "crit", "Critical", "crit" } }
 local HUD_COLS = { { "share", "Share" }, { "max", "Max" }, { "perMinute", "/min" } }
 
 -- The session the HUD shows: a Build Tester run in progress, else the fight.
@@ -235,6 +234,23 @@ function View.BuildHud()
     table.insert(headRow, 1, UI.Image{ texture = icon, width = 20, height = 20, style = { marginRight = 6 } })
   end
   local children = { UI.Row{ style = { alignItems = "center", marginBottom = 4 }, children = headRow } }
+  -- Experience since the last reset, under the title: Adv XP | Prod XP, half
+  -- the width each (owner, 2026-11-01), then a line before the metrics.
+  local function xpHalf(name)
+    local k = label(name, "dim", { fontSize = 12, whiteSpace = "nowrap", marginRight = 6 })
+    local v = label("0", "bright", { fontSize = 12, whiteSpace = "nowrap", flexGrow = 1, textAlign = "right", marginRight = 8 })
+    return UI.Row{ style = { alignItems = "center", flexGrow = 1, flexShrink = 1, width = "50%" }, children = { k, v } }, v
+  end
+  local advHalf, advValue = xpHalf("Adv XP")
+  local prodHalf, prodValue = xpHalf("Prod XP")
+  H.xp = { row = UI.Row{ style = { alignItems = "center", marginTop = 1, marginBottom = 1 }, children = { advHalf, prodHalf } },
+    adv = advHalf, prod = prodHalf, advValue = advValue, prodValue = prodValue }
+  children[#children + 1] = H.xp.row
+  local function separator()
+    return UI.Row{ style = { height = 1, backgroundColor = "#c7a66c55", marginTop = 5, marginBottom = 5, alignSelf = "stretch" } }
+  end
+  H.sepXp = separator()
+  children[#children + 1] = H.sepXp
   for i, st in ipairs(HUD_STATS) do
     local row, value = hudRow(st[2], st[3])
     H.stats[i] = { key = st[1], row = row, value = value }
@@ -269,10 +285,12 @@ function View.BuildHud()
   local L = { tip = nil }
   L.img = iconImage(M.MetricIcon("total"), 20, { marginRight = 6 })
   L.name = label("", "bright", { fontSize = 12, whiteSpace = "nowrap", flexShrink = 1, flexGrow = 1 })
-  L.row = UI.Row{ style = { alignItems = "center", marginTop = 6, height = 20 }, tooltip = M.LootTooltip(),
+  L.row = UI.Row{ style = { alignItems = "center", height = 20 }, tooltip = M.LootTooltip(),
     children = L.img and { L.img, L.name } or { L.name } }
   L.section = L.row
   H.loot = L
+  H.sepLoot = separator()
+  children[#children + 1] = H.sepLoot
   children[#children + 1] = L.section
   -- The panel keeps its natural height (no flexGrow), so GetSize() reports what
   -- its lines really need and the frame is fitted to it (see fitHud).
@@ -301,13 +319,19 @@ local function layoutHud(skillCount)
   H.skillHead:SetVisible(skills > 0)
   local loot = show.loot == true
   H.loot.section:SetVisible(loot)
-  local key = rows .. ":" .. cols .. ":" .. skills .. ":" .. tostring(loot)
+  local adv, prod = show.advXp == true, show.prodXp == true
+  local xp = adv or prod
+  H.xp.adv:SetVisible(adv); H.xp.prod:SetVisible(prod); H.xp.row:SetVisible(xp)
+  local metrics = rows > 0 or skills > 0
+  H.sepXp:SetVisible(xp and metrics)
+  H.sepLoot:SetVisible(loot and (metrics or xp))
+  local key = rows .. ":" .. cols .. ":" .. skills .. ":" .. tostring(loot) .. ":" .. tostring(adv) .. tostring(prod)
   if key ~= hudLayoutKey then
     hudLayoutKey = key
     -- A generous first guess (lines are about 28 px tall in game); fitHud then
     -- sets the height the game actually laid out.
     H.w = math.max(260, 190 + cols * 56)
-    H.h = 60 + rows * 30 + (skills > 0 and (30 + skills * 30) or 0) + (loot and 30 or 0)
+    H.h = 60 + rows * 30 + (skills > 0 and (30 + skills * 30) or 0) + (loot and 40 or 0) + (xp and 40 or 0)
     hud:SetSize(H.w, H.h)
   end
   return cols
@@ -334,10 +358,7 @@ local function refreshHud(now)
   local started = s and s.start
   for _, st in ipairs(H.stats) do
     local v = "-"
-    -- experience since the last reset: shown with or without a fight
-    if st.key == "advXp" then v = M.Num(M.xp.adventurer)
-    elseif st.key == "prodXp" then v = M.Num(M.xp.producer)
-    elseif started then
+    if started then
       if st.key == "dps" then
         local live = (kind == "tester" and not s.ended) or (kind == "fight" and Model.InCombat(s))
         local recent = live and Model.Recent(s, now) or nil
@@ -368,24 +389,26 @@ local function refreshHud(now)
     end
     r.row:SetVisible(on)
   end
+  -- experience since the last reset: shown with or without a fight
+  H.xp.advValue:SetText(M.Num(M.xp.adventurer))
+  H.xp.prodValue:SetText(M.Num(M.xp.producer))
   if M.settings.hudShow.loot then
     local L = H.loot
     local last = M.loot.items[1]
     if last then
       L.name:SetText(last.name .. (last.quantity > 1 and ("  x" .. last.quantity) or ""))
-      local colour = M.LootColour(last)
-      if colour ~= L.colour then L.name:SetStyle{ color = colour }; L.colour = colour end
+
       local spec = last.icon and { tex = last.icon, uv = { 0, 0, 1, 1 }, key = "i:" .. last.icon } or M.MetricIcon("total")
       if not setIcon(L, L.img, spec, M.MetricIcon("total")) then last.icon = nil end
     else
       L.name:SetText("No artifact yet")
-      if L.colour then L.name:SetStyle{ color = "@text-dim" }; L.colour = nil end
+
       setIcon(L, L.img, M.MetricIcon("total"))
     end
-    if (last ~= nil) ~= L.lit then
-      L.lit = last ~= nil
-      if L.lit then L.name:RemoveClass("dim"); L.name:AddClass("bright") else L.name:RemoveClass("bright"); L.name:AddClass("dim") end
-    end
+    -- The colour is set as a style only (0.8.1 also switched classes, which
+    -- put the plain colour back over it): orange / yellow / normal / dim.
+    local colour = last and M.LootColour(last) or "@text-dim"
+    if colour ~= L.colour then L.name:SetStyle{ color = colour }; L.colour = colour end
     local tip = M.LootTooltip()
     if tip ~= L.tip then L.row:SetTooltip(tip); L.tip = tip end
   end
