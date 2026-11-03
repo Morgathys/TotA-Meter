@@ -2,7 +2,7 @@
 
 DPS meter and Build Tester for **Shroud of the Avatar**, made for [Tools of the Avatar](https://tota.149600000.xyz). It counts only **your** damage and **your pet's**; other players and party members are ignored.
 
-Version 1.0.0 · slug `tota-meter` · minimum Lua API 25.
+Version 1.1.0 · slug `tota-meter` · minimum Lua API 25.
 
 ## Install
 1. Copy this `tota-meter` folder into your Lua folder (type `/lua path` in game to find it), or unzip the release zip there.
@@ -57,8 +57,8 @@ The HUD's bottom line (as tall as the item's icon) shows the last item of note y
 
 Only loot counts (0.8.1): an item is logged when it reaches your bags **and** the chat says "You looted an item (…)" for it within 5 seconds. Items taken out of your bank, a chest or a crafting station have no such line and are left out. The game's tooltips have no colours, so the hover list is plain text.
 
-## Experience
-The HUD's top line, under the title, shows **Adv XP** and **Prod XP** side by side: they add up the Adventurer and Producer experience you gained since the last **Reset meter** (kept across reloads and relogs). Switch them on or off in the Setup tab.
+## Experience and gold
+The HUD's top line, under the title, shows **Adv XP** and **Prod XP**, each with its rate per hour, and the line under the loot shows the **Gold** you gained with its rate per hour. All of them count from the last **Reset meter** and are kept across reloads and relogs. The rates use the time the add-on ran (time offline doesn't count) and show after the first minute. Gold counts what came into your purse (loot, sales, trades, the bank); spending is not taken off. Switch each line on or off in the Setup tab.
 
 ## Commands
 Type them in the chat box; the Setup tab lists them too.

@@ -357,6 +357,7 @@ local function tickModel()
   local now = M.Now()
   M.diag.ticks = M.diag.ticks + 1
   M.diag.lastTickAt = now
+  M.SampleSession(now)
   M.deckName = M.Export.CurrentDeckName()
   local okV, v = pcall(ShroudGetPlayerVitals)
   if okV and type(v) == "table" and type(v.maxFocus) == "number" then M.maxFocus = v.maxFocus end
@@ -397,6 +398,7 @@ function M.PrintDebug()
     tostring(M.inCombat), tostring(D.lastLineTime), M.Now(), tostring(M.playerName)))
   M.Say(string.format("loot: \"You looted\" lines seen %d · items waiting for their line %d · logged %d · XP since reset: adventurer %s, producer %s",
     M.lootLinesSeen, #M.lootPending, #M.loot.items, M.Num(M.xp.adventurer), M.Num(M.xp.producer)))
+  M.Say(string.format("gold since reset %s (purse now %s) · time counted %s", M.Num(M.xp.gold), tostring(ShroudPlayerGold), M.Clock(M.xp.seconds)))
 end
 
 function M.PrintErrors(arg)

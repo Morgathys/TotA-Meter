@@ -236,15 +236,17 @@ function View.BuildHud()
   local children = { UI.Row{ style = { alignItems = "center", marginBottom = 4 }, children = headRow } }
   -- Experience since the last reset, under the title: Adv XP | Prod XP, half
   -- the width each (owner, 2026-11-01), then a line before the metrics.
+  -- Each key sits next to its value, then the rate per hour (owner, 2026-11-03).
   local function xpHalf(name)
-    local k = label(name, "dim", { fontSize = 12, whiteSpace = "nowrap", marginRight = 6 })
-    local v = label("0", "bright", { fontSize = 12, whiteSpace = "nowrap", flexGrow = 1, textAlign = "right", marginRight = 8 })
-    return UI.Row{ style = { alignItems = "center", flexGrow = 1, flexShrink = 1, width = "50%" }, children = { k, v } }, v
+    local k = label(name, "dim", { fontSize = 12, whiteSpace = "nowrap" })
+    local v = label("0", "bright", { fontSize = 12, whiteSpace = "nowrap", marginLeft = 6 })
+    local r = label("", "dim", { fontSize = 11, whiteSpace = "nowrap", marginLeft = 5 })
+    return UI.Row{ style = { alignItems = "center", flexGrow = 1, flexShrink = 1, width = "50%" }, children = { k, v, r } }, v, r
   end
-  local advHalf, advValue = xpHalf("Adv XP")
-  local prodHalf, prodValue = xpHalf("Prod XP")
+  local advHalf, advValue, advRate = xpHalf("Adv XP")
+  local prodHalf, prodValue, prodRate = xpHalf("Prod XP")
   H.xp = { row = UI.Row{ style = { alignItems = "center", marginTop = 1, marginBottom = 1 }, children = { advHalf, prodHalf } },
-    adv = advHalf, prod = prodHalf, advValue = advValue, prodValue = prodValue }
+    adv = advHalf, prod = prodHalf, advValue = advValue, prodValue = prodValue, advRate = advRate, prodRate = prodRate }
   children[#children + 1] = H.xp.row
   local function separator()
     return UI.Row{ style = { height = 1, backgroundColor = "#c7a66c55", marginTop = 5, marginBottom = 5, alignSelf = "stretch" } }
@@ -292,6 +294,12 @@ function View.BuildHud()
   H.sepLoot = separator()
   children[#children + 1] = H.sepLoot
   children[#children + 1] = L.section
+  -- Gold gained since the last reset and per hour, under the loot line.
+  local gk = label("Gold", "dim", { fontSize = 12, whiteSpace = "nowrap" })
+  local gv = label("0", "bright", { fontSize = 12, whiteSpace = "nowrap", marginLeft = 6, color = "@gold" })
+  local gr = label("", "dim", { fontSize = 11, whiteSpace = "nowrap", marginLeft = 5 })
+  H.gold = { row = UI.Row{ style = { alignItems = "center", marginTop = 4 }, children = { gk, gv, gr } }, value = gv, rate = gr }
+  children[#children + 1] = H.gold.row
   -- The panel keeps its natural height (no flexGrow), so GetSize() reports what
   -- its lines really need and the frame is fitted to it (see fitHud).
   H.panel = UI.Column{ style = { backgroundColor = "#0b0e0de6", borderColor = "#c7a66c55", borderWidth = 1, borderRadius = 4,
@@ -324,14 +332,17 @@ local function layoutHud(skillCount)
   H.xp.adv:SetVisible(adv); H.xp.prod:SetVisible(prod); H.xp.row:SetVisible(xp)
   local metrics = rows > 0 or skills > 0
   H.sepXp:SetVisible(xp and metrics)
-  H.sepLoot:SetVisible(loot and (metrics or xp))
-  local key = rows .. ":" .. cols .. ":" .. skills .. ":" .. tostring(loot) .. ":" .. tostring(adv) .. tostring(prod)
+  local gold = show.gold == true
+  H.gold.row:SetVisible(gold)
+  H.sepLoot:SetVisible((loot or gold) and (metrics or xp))
+  local key = rows .. ":" .. cols .. ":" .. skills .. ":" .. tostring(loot) .. ":" .. tostring(adv) .. tostring(prod) .. tostring(gold)
   if key ~= hudLayoutKey then
     hudLayoutKey = key
     -- A generous first guess (lines are about 28 px tall in game); fitHud then
     -- sets the height the game actually laid out.
-    H.w = math.max(260, 190 + cols * 56)
-    H.h = 60 + rows * 30 + (skills > 0 and (30 + skills * 30) or 0) + (loot and 40 or 0) + (xp and 40 or 0)
+    -- both XP halves with their /h need about 340 px
+    H.w = math.max((adv and prod) and 340 or 260, 190 + cols * 56)
+    H.h = 60 + rows * 30 + (skills > 0 and (30 + skills * 30) or 0) + (loot and 40 or 0) + (xp and 40 or 0) + (gold and 26 or 0)
     hud:SetSize(H.w, H.h)
   end
   return cols
@@ -390,8 +401,12 @@ local function refreshHud(now)
     r.row:SetVisible(on)
   end
   -- experience since the last reset: shown with or without a fight
-  H.xp.advValue:SetText(M.Num(M.xp.adventurer))
-  H.xp.prodValue:SetText(M.Num(M.xp.producer))
+  local function rate(total) local r = M.PerHour(total) return r and ("(" .. M.Short(r) .. "/h)") or "" end
+  H.xp.advValue:SetText(M.Num(M.xp.adventurer)); H.xp.advRate:SetText(rate(M.xp.adventurer))
+  H.xp.prodValue:SetText(M.Num(M.xp.producer)); H.xp.prodRate:SetText(rate(M.xp.producer))
+  if M.settings.hudShow.gold then
+    H.gold.value:SetText(M.Num(M.xp.gold)); H.gold.rate:SetText(rate(M.xp.gold))
+  end
   if M.settings.hudShow.loot then
     local L = H.loot
     local last = M.loot.items[1]
