@@ -5,7 +5,7 @@
 TotaMeter = TotaMeter or {}
 local M = TotaMeter
 
-M.VERSION = "1.0.0"
+M.VERSION = "1.1.0"
 
 -- Slash commands (owner, 2026-10-30: /tota instead of /totameter), listed in
 -- the Setup tab and in the game's /help.
@@ -128,6 +128,16 @@ function M.Num(n)
   return neg .. out
 end
 
+-- 1234 -> "1.2k", 1234567 -> "1.23M" (rates on the HUD)
+function M.Short(n)
+  if type(n) ~= "number" or n ~= n then return "0" end
+  local a = math.abs(n)
+  if a >= 1e6 then return string.format("%.2fM", n / 1e6) end
+  if a >= 1e4 then return string.format("%.0fk", n / 1e3) end
+  if a >= 1e3 then return string.format("%.1fk", n / 1e3) end
+  return M.Num(n)
+end
+
 -- 0.183 -> "18%" (nil when there is nothing to divide)
 function M.Pct(part, whole)
   if type(whole) ~= "number" or whole <= 0 then return "-" end
@@ -160,8 +170,8 @@ end
 
 -- What the HUD shows (owner, 2026-10-28): each line can be switched on or off.
 M.HUD_ITEMS = {
-  { key = "advXp", label = "Adventurer XP since reset (top line)" },
-  { key = "prodXp", label = "Producer XP since reset (top line)" },
+  { key = "advXp", label = "Adventurer XP and XP/hour since reset (top line)" },
+  { key = "prodXp", label = "Producer XP and XP/hour since reset (top line)" },
   { key = "dps", label = "DPS" },
   { key = "peak", label = "Peak DPS (best 5 s)" },
   { key = "total", label = "Total damage" },
@@ -170,8 +180,9 @@ M.HUD_ITEMS = {
   { key = "max", label = "Skill max hit" },
   { key = "perMinute", label = "Skill uses per minute" },
   { key = "loot", label = "Last artifact / crown / blueprint" },
+  { key = "gold", label = "Gold gained and gold/hour since reset (bottom line)" },
 }
-M.HUD_DEFAULT = { dps = true, peak = true, total = true, crit = true, share = true, max = false, perMinute = false, advXp = true, prodXp = true, loot = true }
+M.HUD_DEFAULT = { dps = true, peak = true, total = true, crit = true, share = true, max = false, perMinute = false, advXp = true, prodXp = true, loot = true, gold = true }
 M.HUD_SKILL_CHOICES = { "3", "5", "8" }
 
 M.settings = { hud = true, hudShow = {}, hudSkills = 5, combatDeck = nil, altDeck = nil, includeSkills = true }
@@ -402,15 +413,24 @@ end
 -- at logout / reload), cleared with the meter like the loot list.
 -- ---------------------------------------------------------------------------
 
-M.xp = { adventurer = 0, producer = 0 }
+-- Also the gold gained (owner, 2026-11-03: rises of ShroudPlayerGold, so
+-- spending is not taken off) and the time the add-on ran (for the /hour
+-- rates: offline time does not count).
+M.xp = { adventurer = 0, producer = 0, gold = 0, seconds = 0 }
+M.SESSION_SAVE = 30   -- seconds between saves of the session totals
 
 function M.LoadXp()
   local saved = ShroudGetSavedVar("xpGained", "character")
-  M.xp = { adventurer = 0, producer = 0 }
+  M.xp = { adventurer = 0, producer = 0, gold = 0, seconds = 0 }
   if type(saved) ~= "table" then return end
   for k in pairs(M.xp) do
     if type(saved[k]) == "number" and saved[k] >= 0 and saved[k] < 1e15 then M.xp[k] = saved[k] end
   end
+end
+
+local function saveSession(now)
+  ShroudSetSavedVar("xpGained", M.xp, "character")
+  M.sessionSavedAt = now
 end
 
 function M.AddXp(kind, amount)
@@ -418,13 +438,36 @@ function M.AddXp(kind, amount)
   local k = kind == "Adventurer" and "adventurer" or kind == "Producer" and "producer" or nil
   if not k then return false end
   M.xp[k] = M.xp[k] + amount
-  ShroudSetSavedVar("xpGained", M.xp, "character")
+  saveSession(M.Now())
   return true
 end
 
+-- Every meter tick: running time and gold. A reading of 0 (no player yet,
+-- loading a scene) is skipped so the whole purse is not counted as gained
+-- when it comes back.
+function M.SampleSession(now)
+  if M.lastSessionTick then
+    local dt = now - M.lastSessionTick
+    if dt > 0 and dt < 10 then M.xp.seconds = M.xp.seconds + dt end
+  end
+  M.lastSessionTick = now
+  local g = ShroudPlayerGold
+  if type(g) == "number" and g > 0 and g < 1e12 then
+    if M.lastGold and g > M.lastGold then M.xp.gold = M.xp.gold + (g - M.lastGold) end
+    M.lastGold = g
+  end
+  if not M.sessionSavedAt or now - M.sessionSavedAt >= M.SESSION_SAVE or now < M.sessionSavedAt then saveSession(now) end
+end
+
+-- Per hour of play since the last reset; nil for the first minute.
+function M.PerHour(total)
+  if M.xp.seconds < 60 then return nil end
+  return total * 3600 / M.xp.seconds
+end
+
 function M.ResetXp()
-  M.xp = { adventurer = 0, producer = 0 }
-  ShroudSetSavedVar("xpGained", M.xp, "character")
+  M.xp = { adventurer = 0, producer = 0, gold = 0, seconds = 0 }
+  saveSession(M.Now())
 end
 
 -- The game's tooltip text: the last LOOT_TOOLTIP items, newest first (tooltips stop at 512 characters).
