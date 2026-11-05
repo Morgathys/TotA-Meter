@@ -326,7 +326,7 @@ end
 function ShroudOnUpdate() guard("frame update", onUpdate) end
 
 -- Loot of note: artifacts, Crowns of the Obsidians, blueprints (see core.lua).
--- Only loot counts: the item must also be named by a "You looted" chat line.
+-- Only loot counts: the item must also be named by a "You looted" or "You harvested" chat line.
 function ShroudOnItemsGained(items, dropped)
   guard("loot", function()
     if type(items) == "table" and M.OnItemsGained(items, M.Now()) > 0 then M.View.Tick(M.Now()) end
@@ -334,7 +334,7 @@ function ShroudOnItemsGained(items, dropped)
 end
 
 function ShroudOnConsoleInput(inputType, sourcePlayer, message)
-  if type(message) ~= "string" or not string.find(message, "looted", 1, true) then return end
+  if type(message) ~= "string" or not string.find(message, "(", 1, true) then return end
   guard("loot line", function()
     if M.OnLootLine(message, M.Now()) > 0 then M.View.Tick(M.Now()) end
   end)
@@ -396,7 +396,7 @@ function M.PrintDebug()
   M.Say(string.format("meter: %s · in combat %s (game says %s) · last line time %s · game time %.1f · player %s",
     f and (f.start and (M.Num(f.total) .. " damage") or "not started") or "missing", tostring(f and Model.InCombat(f)),
     tostring(M.inCombat), tostring(D.lastLineTime), M.Now(), tostring(M.playerName)))
-  M.Say(string.format("loot: \"You looted\" lines seen %d · items waiting for their line %d · logged %d · XP since reset: adventurer %s, producer %s",
+  M.Say(string.format("loot: \"You looted / harvested\" lines seen %d · items waiting for their line %d · logged %d · XP since reset: adventurer %s, producer %s",
     M.lootLinesSeen, #M.lootPending, #M.loot.items, M.Num(M.xp.adventurer), M.Num(M.xp.producer)))
   M.Say(string.format("gold since reset %s (purse now %s) · time counted %s", M.Num(M.xp.gold), tostring(ShroudPlayerGold), M.Clock(M.xp.seconds)))
 end
