@@ -20,7 +20,9 @@ Kpi.SPANS = {
   { key = "c3", label = "@3", from = 0, to = 180, windows = { 1, 2 }, cumulative = true },
   { key = "c5", label = "@5", from = 0, to = 300, windows = { 1, 2, 3 }, cumulative = true },
 }
-Kpi.KILL = { 10000, 25000, 50000 }
+-- Kill Clock damage levels (owner, 2026-11-05: 25k / 75k / 150k; 10k / 25k /
+-- 50k up to 1.1.1, which the site still reads for runs made with those).
+Kpi.KILL = { 25000, 75000, 150000 }
 Kpi.ROTATION_SHARE = 0.75
 Kpi.STARVED = 0.10
 Kpi.RAMP = 0.90
@@ -301,9 +303,9 @@ Kpi.GROUPS = {
       function(r) return (r.key == "w1" or r.key == "c1") and num(r.opener) or "" end },
     { "rampUp", "Ramp-up Time", "Seconds until your 5-second DPS first reaches 90% of the DPS at this checkpoint.",
       c(function(r) return r.rampUp and (r.rampUp .. " s") or "-" end) },
-    { "killClock", "Kill Clock 10k", "Seconds to deal 10,000 damage: how fast you'd kill a creature with that much health.", kill(1) },
-    { "killClock", "Kill Clock 25k", "Seconds to deal 25,000 damage: how fast you'd kill a creature with that much health.", kill(2) },
-    { "killClock", "Kill Clock 50k", "Seconds to deal 50,000 damage: how fast you'd kill a creature with that much health.", kill(3) },
+    { "killClock", "Kill Clock 25k", "Seconds to deal 25,000 damage: how fast you'd kill a creature with that much health.", kill(1) },
+    { "killClock", "Kill Clock 75k", "Seconds to deal 75,000 damage: how fast you'd kill a creature with that much health.", kill(2) },
+    { "killClock", "Kill Clock 150k", "Seconds to deal 150,000 damage: how fast you'd kill a creature with that much health.", kill(3) },
   } },
   { "Hit quality", {
     { "avgHit", "Average Hit", "Average damage of your normal hits (per skill below).", function(r) return num(r.avgHit) end },

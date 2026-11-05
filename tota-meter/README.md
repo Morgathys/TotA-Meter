@@ -2,7 +2,7 @@
 
 DPS meter and Build Tester for **Shroud of the Avatar**, made for [Tools of the Avatar](https://tota.149600000.xyz). It counts only **your** damage and **your pet's**; other players and party members are ignored.
 
-Version 1.1.1 · slug `tota-meter` · minimum Lua API 25.
+Version 1.2.0 · slug `tota-meter` · minimum Lua API 25.
 
 ## Install
 1. Copy this `tota-meter` folder into your Lua folder (type `/lua path` in game to find it), or unzip the release zip there.
@@ -22,7 +22,7 @@ The **Performance** table shows 29 KPIs, each with its icon (hover a KPI for wha
 
 | Group | KPIs |
 |---|---|
-| Damage | DPS, Peak Burst, Opener DPS, Ramp-up Time, Kill Clock 10k / 25k / 50k |
+| Damage | DPS, Peak Burst, Opener DPS, Ramp-up Time, Kill Clock 25k / 75k / 150k |
 | Hit quality | Average Hit, Average Crit, Crit Power, Crit Rate, Crit Gain |
 | Rhythm and usability | Tempo, Tempo Efficiency, Cast Gap, Deck Use, Rotation Depth, Locked Share, Alt Deck Share |
 | Stability | Consistency, Spread, Downtime, Hold Ratio, Trend |

@@ -5,7 +5,7 @@
 TotaMeter = TotaMeter or {}
 local M = TotaMeter
 
-M.VERSION = "1.1.1"
+M.VERSION = "1.2.0"
 
 -- Slash commands (owner, 2026-10-30: /tota instead of /totameter), listed in
 -- the Setup tab and in the game's /help.
