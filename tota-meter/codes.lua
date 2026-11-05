@@ -360,7 +360,9 @@ function Codes.TestPayload(run)
   local combat, alt = nil, nil
   for _, d in ipairs(codes) do if d.alt then alt = d else combat = combat or d end end
   varint(out, (run.stopped and 0 or 1) + ((#codes > 0) and 2 or 0))
-  str(out, M.VERSION)
+  -- the version that made the run (the site reads its Kill Clock levels from
+  -- it); runs saved before 1.2.0 have none and used 10k / 25k / 50k
+  str(out, run.addon or "1.1.1")
   str(out, run.when)
   str(out, combat and combat.name or "")
   varint(out, combat and (adler(combat.code) + 1) or 0)

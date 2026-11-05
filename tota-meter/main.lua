@@ -126,7 +126,7 @@ local function saveRun(s)
   if ok then s.kpis = out; kpis = M.Kpi.Saved(out) else M.ReportError("Build Tester KPIs", out) end
   local okT, extra = pcall(M.RunExtras, s)
   if not okT then M.ReportError("Build Tester save", extra); extra = {} end
-  M.RememberTest({ when = tostring(ShroudServerTime or ""), stopped = s.stopped, stats = s.snap, snapshots = s.snaps, kpis = kpis,
+  M.RememberTest({ when = tostring(ShroudServerTime or ""), addon = M.VERSION, stopped = s.stopped, stats = s.snap, snapshots = s.snaps, kpis = kpis,
     decks = s.layoutNames, timeline = extra.timeline, skills = extra.skills, deckRunes = extra.deckRunes, deckCodes = extra.deckCodes,
     altDeck = s.altDeck, maxFocus = extra.maxFocus, dropped = s.dropped })
 end
