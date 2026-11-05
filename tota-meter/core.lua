@@ -5,7 +5,7 @@
 TotaMeter = TotaMeter or {}
 local M = TotaMeter
 
-M.VERSION = "1.1.0"
+M.VERSION = "1.1.1"
 
 -- Slash commands (owner, 2026-10-30: /tota instead of /totameter), listed in
 -- the Setup tab and in the game's /help.
@@ -344,19 +344,25 @@ end
 
 -- Loot only (owner, 2026-11-01): ShroudOnItemsGained also fires for items
 -- taken out of a chest, the bank or a crafting station. An item counts only
--- when the chat also says "You looted an item (<name>)." within LOOT_MATCH
+-- when the chat also says "You looted / harvested an item (<name>)." within LOOT_MATCH
 -- seconds of it arriving in the bags (either one may come first).
 M.LOOT_MATCH = 5
 M.lootLines = {}     -- key -> time the chat named it (items of note only)
 M.lootPending = {}   -- items of note waiting for their chat line: { item, key, at }
 M.lootLinesSeen = 0  -- for /tota debug
 
--- The item named by a "You looted ..." chat line, or nil.
+-- The chat words that mean an item came from loot (1.1.1: the game also says
+-- "You harvested an item (Crown of the Obsidians x23)." for a body's loot).
+M.LOOT_VERBS = { looted = true, harvested = true }
+
+-- The item named by a "You looted / harvested ..." chat line, or nil. A
+-- stack's " x23" is not part of the name.
 function M.LootLineName(message)
-  if type(message) ~= "string" or not string.find(message, "looted", 1, true) then return nil end
+  if type(message) ~= "string" or not string.find(message, "(", 1, true) then return nil end
   local text = string.gsub(message, "<[^>]->", "")
-  local name = string.match(text, "[Yy]ou looted[^%(]*%((.+)%)")
-  if not name then return nil end
+  local verb, name = string.match(text, "[Yy]ou (%a+)[^%(]*%((.+)%)")
+  if not verb or not M.LOOT_VERBS[string.lower(verb)] then return nil end
+  name = string.gsub(name, "%s+[xX]%s?%d+$", "")
   name = string.gsub(string.gsub(name, "^%s+", ""), "%s+$", "")
   return name ~= "" and name or nil
 end
